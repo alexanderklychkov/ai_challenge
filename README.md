@@ -25,13 +25,11 @@ npm install
 
 ```env
 # Для фронтенда
-VITE_YANDEX_GPT_FOLDER_ID=your_folder_id_here
+YANDEX_GPT_FOLDER_ID=your_folder_id_here
 
 # Для бэкенд-прокси (API ключ хранится на сервере для безопасности)
 YANDEX_GPT_API_KEY=your_api_key_here
 ```
-
-**Важно:** API ключ теперь хранится на сервере, а не на фронтенде, что более безопасно.
 
 ### 3. Область действия API ключа
 
@@ -64,16 +62,6 @@ npm run dev:all
 ```bash
 npm run build
 ```
-
-## Структура проекта
-
-- `src/App.tsx` - основной компонент приложения
-- `src/components/Sidebar.tsx` - левая панель навигации
-- `src/components/ChatArea.tsx` - центральная область чата
-- `src/components/ContextPanel.tsx` - правая контекстная панель
-- `src/hooks/useChat.ts` - хук для управления чатом
-- `src/services/yandexGPT.ts` - сервис для работы с Yandex GPT API (через прокси)
-- `server/index.js` - прокси-сервер для обхода CORS и безопасного хранения API ключа
 
 ## Технологии
 
