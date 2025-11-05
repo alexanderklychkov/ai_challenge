@@ -40,13 +40,14 @@ export const useChat = () => {
       ]);
 
       // Отправляем запрос к Yandex GPT через прокси-сервер
-      const response = await sendToYandexGPT(yandexMessages);
+      const aiResponse = await sendToYandexGPT(yandexMessages);
 
       const assistantMessage: Message = {
         id: generateId(),
         type: 'assistant',
-        content: response,
+        content: aiResponse.content,
         timestamp: new Date(),
+        aiResponse: aiResponse,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

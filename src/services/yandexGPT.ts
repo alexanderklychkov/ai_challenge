@@ -1,14 +1,16 @@
+import { AIResponse } from '../types/message';
+
 // Используем прокси-сервер для обхода CORS
 const YANDEX_GPT_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001/api/yandex-gpt';
 
 /**
  * Отправляет запрос к Yandex GPT API через прокси-сервер
  * @param messages История сообщений
- * @returns Ответ от модели
+ * @returns Ответ от модели в формате AIResponse
  */
 export const sendToYandexGPT = async (
   messages: Array<{ role: 'user' | 'assistant'; text: string }>
-): Promise<string> => {
+): Promise<AIResponse> => {
   try {
     const response = await fetch(YANDEX_GPT_PROXY_URL, {
       method: 'POST',
@@ -34,7 +36,32 @@ export const sendToYandexGPT = async (
       throw new Error('Invalid response format from proxy server');
     }
 
-    return data.text;
+    try {
+      const aiResponse: AIResponse = JSON.parse(data.text);
+      
+      // Валидация структуры ответа
+      if (!aiResponse.content) {
+        throw new Error('Missing content field in AI response');
+      }
+
+      console.log(aiResponse);
+      
+      // Устанавливаем значения по умолчанию, если они отсутствуют
+      return {
+        content: aiResponse.content,
+        references: Array.isArray(aiResponse.references) ? aiResponse.references : [],
+        difficulty: aiResponse.difficulty || 'intermediate',
+        tokens: typeof aiResponse.tokens === 'number' ? aiResponse.tokens : undefined,
+      };
+    } catch (parseError) {
+      // Если не удалось распарсить JSON, возвращаем как обычный текст
+      console.warn('Failed to parse AI response as JSON, using as plain text:', parseError);
+      return {
+        content: data.text,
+        references: [],
+        difficulty: 'intermediate',
+      };
+    }
   } catch (error) {
     console.error('Yandex GPT API error:', error);
     throw error;

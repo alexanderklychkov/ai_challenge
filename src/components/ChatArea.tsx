@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message } from '../types/message';
+import Markdown from 'react-markdown';
+import { getMarkdownComponents } from '../utils/markdownComponents';
 
 interface ChatAreaProps {
   messages: Message[]
@@ -96,17 +98,69 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage }: ChatAreaProps)
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">
-                    {message.content}
+                  {/* Difficulty badge для assistant сообщений */}
+                  {message.type === 'assistant' && message.aiResponse?.difficulty && (
+                    <div className="mb-3">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          message.aiResponse.difficulty === 'beginner'
+                            ? 'bg-green-100 text-green-800'
+                            : message.aiResponse.difficulty === 'intermediate'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {message.aiResponse.difficulty === 'beginner'
+                          ? 'Начинающий'
+                          : message.aiResponse.difficulty === 'intermediate'
+                          ? 'Средний'
+                          : 'Продвинутый'}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="break-words max-w-none">
+                    <Markdown components={getMarkdownComponents(message.type === 'user')}>
+                      {message.content}
+                    </Markdown>
                   </div>
-                  <div
-                    className={`text-xs mt-2 ${
-                      message.type === 'user'
-                        ? 'text-blue-100'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    {message.timestamp.toLocaleTimeString('ru-RU', TIME_FORMAT_OPTIONS)}
+
+                  {/* References для assistant сообщений */}
+                  {message.type === 'assistant' && message.aiResponse?.references && message.aiResponse.references.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-300">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Полезные ссылки:</h4>
+                      <ul className="space-y-1.5">
+                        {message.aiResponse.references.map((ref, index) => (
+                          <li key={index}>
+                            <a
+                              href={ref.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-700 underline break-all"
+                            >
+                              {ref.title}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2">
+                    <div
+                      className={`text-xs ${
+                        message.type === 'user'
+                          ? 'text-blue-100'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      {message.timestamp.toLocaleTimeString('ru-RU', TIME_FORMAT_OPTIONS)}
+                    </div>
+                    {message.type === 'assistant' && message.aiResponse?.tokens && (
+                      <div className="text-xs text-gray-400">
+                        {message.aiResponse.tokens.toLocaleString('ru-RU')} токенов
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

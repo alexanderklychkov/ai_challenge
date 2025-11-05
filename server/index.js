@@ -41,13 +41,27 @@ app.post('/api/yandex-gpt', async (req, res) => {
       modelUri,
       completionOptions: {
         stream: false,
-        temperature: 0.6,
+        temperature: 0.3,
         maxTokens: '2000',
       },
+      json_object: true,
       messages: [
         {
           role: 'system',
-          text: 'Ты - помощник по фронтенд-разработке. Отвечай кратко, по делу, с примерами кода когда это уместно.',
+          text: `Ты - Frontend Mentor AI, помощник для фронтенд-разработчиков. Всегда возвращай ответ ТОЛЬКО в JSON формате!
+
+Пример ответа:
+{
+"content": "Основной ответ в markdown формате с кодом, списками, заголовками",
+"references": [
+  {"title": "string", "url": "string"}
+],
+"difficulty": "beginner" | "intermediate" | "advanced",
+"tokens": "количество токенов в ответе (число)"
+}
+
+Правила:
+- В поле content используй markdown разметку`,
         },
         ...messages,
       ],
