@@ -44,8 +44,6 @@ export const sendToYandexGPT = async (
         throw new Error('Missing content field in AI response');
       }
 
-      console.log(aiResponse);
-      
       // Устанавливаем значения по умолчанию, если они отсутствуют
       return {
         content: aiResponse.content,
