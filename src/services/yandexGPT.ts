@@ -4,6 +4,25 @@ import { AIResponse } from '../types/message';
 const YANDEX_GPT_PROXY_URL = import.meta.env.VITE_API_PROXY_URL || 'http://localhost:3001/api/yandex-gpt';
 
 /**
+ * Удаляет markdown блоки кода (```) в начале и конце текста, т.к. Yandex GPT возвращает в формате markdown
+ */
+const removeMarkdownCodeBlocks = (text: string): string => {
+  let cleaned = text.trim();
+  
+  // Удаляем ```\n в начале
+  if (cleaned.startsWith('```\n')) {
+    cleaned = cleaned.substring(4);
+  }
+  
+  // Удаляем \n``` в конце
+  if (cleaned.endsWith('\n```')) {
+    cleaned = cleaned.substring(0, cleaned.length - 4);
+  }
+  
+  return cleaned.trim();
+};
+
+/**
  * Отправляет запрос к Yandex GPT API через прокси-сервер
  * @param messages История сообщений
  * @returns Ответ от модели в формате AIResponse
@@ -36,28 +55,42 @@ export const sendToYandexGPT = async (
       throw new Error('Invalid response format from proxy server');
     }
 
-    try {
-      const aiResponse: AIResponse = JSON.parse(data.text);
-      
-      // Валидация структуры ответа
-      if (!aiResponse.content) {
-        throw new Error('Missing content field in AI response');
-      }
+    // Удаляем markdown блоки кода (```) в начале и конце ответа
+    const cleanedText = removeMarkdownCodeBlocks(data.text);
 
-      // Устанавливаем значения по умолчанию, если они отсутствуют
+    // Проверяем, является ли ответ JSON (начинается с { и заканчивается на })
+    const trimmedText = cleanedText.trim();
+    const isJsonResponse = trimmedText.startsWith('{') && trimmedText.endsWith('}');
+
+    if (isJsonResponse) {
+      try {
+        const aiResponse: AIResponse = JSON.parse(cleanedText);
+        
+        // Валидация структуры ответа
+        if (!aiResponse.content) {
+          throw new Error('Missing content field in AI response');
+        }
+
+        // Устанавливаем значения по умолчанию, если они отсутствуют
+        return {
+          content: aiResponse.content,
+          references: Array.isArray(aiResponse.references) ? aiResponse.references : [],
+          difficulty: aiResponse.difficulty || 'intermediate',
+          tokens: typeof aiResponse.tokens === 'number' ? aiResponse.tokens : undefined,
+        };
+      } catch (parseError) {
+        // Если не удалось распарсить JSON, возвращаем как обычный текст
+        console.warn('Failed to parse AI response as JSON, using as plain text:', parseError);
+        return {
+          content: cleanedText,
+          references: [],
+        };
+      }
+    } else {
+      // Это обычный текст (вопросы от AI), возвращаем как есть без difficulty
       return {
-        content: aiResponse.content,
-        references: Array.isArray(aiResponse.references) ? aiResponse.references : [],
-        difficulty: aiResponse.difficulty || 'intermediate',
-        tokens: typeof aiResponse.tokens === 'number' ? aiResponse.tokens : undefined,
-      };
-    } catch (parseError) {
-      // Если не удалось распарсить JSON, возвращаем как обычный текст
-      console.warn('Failed to parse AI response as JSON, using as plain text:', parseError);
-      return {
-        content: data.text,
+        content: cleanedText,
         references: [],
-        difficulty: 'intermediate',
       };
     }
   } catch (error) {

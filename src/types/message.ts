@@ -6,7 +6,7 @@ export interface AIReference {
 export interface AIResponse {
   content: string;
   references: AIReference[];
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
   tokens?: number;
 }
 
