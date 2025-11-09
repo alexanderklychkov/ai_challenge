@@ -98,24 +98,31 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage }: ChatAreaProps)
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  {/* Difficulty badge для assistant сообщений */}
-                  {message.type === 'assistant' && message.aiResponse?.difficulty && (
-                    <div className="mb-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          message.aiResponse.difficulty === 'beginner'
-                            ? 'bg-green-100 text-green-800'
+                  {/* Model name и Difficulty badge для assistant сообщений */}
+                  {message.type === 'assistant' && (
+                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      {message.modelName && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {message.modelName}
+                        </span>
+                      )}
+                      {message.aiResponse?.difficulty && (
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            message.aiResponse.difficulty === 'beginner'
+                              ? 'bg-green-100 text-green-800'
+                              : message.aiResponse.difficulty === 'intermediate'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {message.aiResponse.difficulty === 'beginner'
+                            ? 'Начинающий'
                             : message.aiResponse.difficulty === 'intermediate'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {message.aiResponse.difficulty === 'beginner'
-                          ? 'Начинающий'
-                          : message.aiResponse.difficulty === 'intermediate'
-                          ? 'Средний'
-                          : 'Продвинутый'}
-                      </span>
+                            ? 'Средний'
+                            : 'Продвинутый'}
+                        </span>
+                      )}
                     </div>
                   )}
 

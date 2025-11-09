@@ -16,4 +16,5 @@ export interface Message {
   content: string;
   timestamp: Date;
   aiResponse?: AIResponse; // Для assistant сообщений с новым форматом
+  modelName?: string; // Название модели, которая сгенерировала ответ
 }
