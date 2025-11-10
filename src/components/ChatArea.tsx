@@ -7,6 +7,7 @@ interface ChatAreaProps {
   messages: Message[]
   isLoading?: boolean
   onSendMessage: (content: string) => void
+  onClearMessages: () => void
 }
 
 const DOT_STYLES = [
@@ -22,7 +23,7 @@ const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 } as const;
 
-const ChatArea = ({ messages, isLoading = false, onSendMessage }: ChatAreaProps) => {
+const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages }: ChatAreaProps) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -65,12 +66,27 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage }: ChatAreaProps)
     <main className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Заголовок */}
       <header className="border-b border-gray-200 px-4 md:px-6 py-4 bg-white">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-800">
-          Frontend Mentor AI
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Ваш помощник в изучении фронтенд-разработки
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-800">
+              Frontend Mentor AI
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Ваш помощник в изучении фронтенд-разработки
+            </p>
+          </div>
+          {messages.length > 0 && (
+            <button
+              onClick={onClearMessages}
+              disabled={isLoading}
+              className="flex-shrink-0 px-4 py-2 cursor-pointer text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-400 transition-colors"
+              aria-label="Очистить чат"
+              title="Очистить историю чата"
+            >
+              Очистить чат
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Область сообщений */}

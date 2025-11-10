@@ -30,5 +30,9 @@ export default {
 
     day4: {
         system_prompt: 'Ты помощник по решению логических задач'
+    },
+
+    default: {
+        system_prompt: 'Ты просто умная ИИ модель'
     }
 };

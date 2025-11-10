@@ -6,7 +6,7 @@ import { handleApiError, sendErrorResponse, sendApiKeyError } from '../utils/err
  */
 export async function handleYandexGPT(req, res) {
   try {
-    const { messages, system_prompt, model } = req.body;
+    const { messages, system_prompt, model, temperature, max_tokens } = req.body;
     const apiKey = process.env.YANDEX_GPT_API_KEY;
     const folderId = req.body.folderId || process.env.YANDEX_GPT_FOLDER_ID;
     
@@ -30,8 +30,8 @@ export async function handleYandexGPT(req, res) {
       modelUri,
       completionOptions: {
         stream: false,
-        temperature: req.body.temperature || 0.3,
-        maxTokens: String(req.body.max_tokens || 2000),
+        temperature: temperature || 0.3,
+        maxTokens: String(max_tokens || 2000),
       },
       messages: [
         {

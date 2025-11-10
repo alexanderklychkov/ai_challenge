@@ -33,7 +33,7 @@ export abstract class AIModel {
 
   constructor(config: AIModelConfig = {}, defaultProxyUrl: string, defaultModel: string) {
     this.config = {
-      systemPrompt: prompts.day4.system_prompt,
+      systemPrompt: prompts.default.system_prompt,
       temperature: 0.3,
       maxTokens: 2000,
       ...config,
