@@ -20,20 +20,31 @@ export async function sendToMultipleModels(
   models: Array<{ model: AIModel; name: string }>,
   messages: AIMessage[]
 ): Promise<ModelResponse[]> {
-  // Выполняем все запросы параллельно
+  // Выполняем все запросы параллельно, каждая модель измеряет свое время
   const promises = models.map(async ({ model, name }) => {
+    const startTime = performance.now();
     try {
       const response = await model.sendMessage(messages);
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
+      
       return {
         modelName: name,
-        response,
+        response: {
+          ...response,
+          responseTime: response.responseTime ?? responseTime,
+        },
       } as ModelResponse;
     } catch (error) {
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
+      
       return {
         modelName: name,
         response: {
           content: `Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
           references: [],
+          responseTime,
         },
         error: error instanceof Error ? error : new Error(String(error)),
       } as ModelResponse;

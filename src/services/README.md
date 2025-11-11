@@ -24,6 +24,7 @@ abstract class AIModel {
 1. **YandexGPTModel** - реализация для Yandex GPT
 2. **ChatGPTModel** - шаблон для ChatGPT (требует настройки API)
 3. **DeepSeekModel** - шаблон для DeepSeek (требует настройки API)
+4. **HuggingFaceModel** - реализация для HuggingFace Inference Providers (требует настройки HF_TOKEN)
 
 ## Использование
 
@@ -93,15 +94,21 @@ import { useState, useMemo } from 'react';
 import { useChat } from './hooks/useChat';
 import { createYandexGPTModel } from './services/yandexGPT';
 import { createChatGPTModel } from './services/chatGPT';
+import { createHuggingFaceModel } from './services/huggingFace';
 
 function MyComponent() {
-  const [modelType, setModelType] = useState<'yandex' | 'chatgpt'>('yandex');
+  const [modelType, setModelType] = useState<'yandex' | 'chatgpt' | 'huggingface'>('yandex');
 
   const model = useMemo(() => {
     if (modelType === 'yandex') {
       return createYandexGPTModel();
-    } else {
+    } else if (modelType === 'chatgpt') {
       return createChatGPTModel();
+    } else {
+      return createHuggingFaceModel({
+        model: 'deepseek-ai/DeepSeek-R1',
+        provider: 'fastest'
+      });
     }
   }, [modelType]);
 
@@ -111,10 +118,43 @@ function MyComponent() {
     <div>
       <button onClick={() => setModelType('yandex')}>Yandex GPT</button>
       <button onClick={() => setModelType('chatgpt')}>ChatGPT</button>
+      <button onClick={() => setModelType('huggingface')}>HuggingFace</button>
       {/* ... */}
     </div>
   );
 }
+```
+
+### Использование HuggingFace Inference Providers
+
+HuggingFace Inference Providers предоставляет доступ к множеству моделей через единый API:
+
+```typescript
+import { createHuggingFaceModel } from './services/huggingFace';
+
+// Автоматический выбор провайдера
+const model1 = createHuggingFaceModel({
+  model: 'deepseek-ai/DeepSeek-R1',
+  provider: 'auto'
+});
+
+// Выбор самого быстрого провайдера
+const model2 = createHuggingFaceModel({
+  model: 'openai/gpt-oss-120b',
+  provider: 'fastest'
+});
+
+// Выбор самого дешевого провайдера
+const model3 = createHuggingFaceModel({
+  model: 'deepseek-ai/DeepSeek-R1',
+  provider: 'cheapest'
+});
+
+// Конкретный провайдер
+const model4 = createHuggingFaceModel({
+  model: 'deepseek-ai/DeepSeek-R1',
+  provider: 'sambanova'
+});
 ```
 
 ## Создание новой модели

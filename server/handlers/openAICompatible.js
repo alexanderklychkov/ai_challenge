@@ -51,7 +51,23 @@ export function createOpenAIHandler(config) {
       const data = await response.json();
       const text = extractOpenAIResponse(data);
 
-      res.json({ text });
+      // Извлекаем информацию о токенах и стоимости из ответа
+      const usage = data.usage || {};
+      const responseData = {
+        text,
+        tokens: usage.total_tokens,
+        inputTokens: usage.prompt_tokens,
+        outputTokens: usage.completion_tokens,
+      };
+
+      // Если есть информация о стоимости в ответе, добавляем её
+      if (data.cost !== undefined) {
+        responseData.cost = data.cost;
+      } else if (usage.cost !== undefined) {
+        responseData.cost = usage.cost;
+      }
+
+      res.json(responseData);
     } catch (error) {
       sendErrorResponse(res, error, `Произошла ошибка при обращении к ${serviceName}`);
     }

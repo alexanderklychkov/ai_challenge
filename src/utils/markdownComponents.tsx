@@ -129,22 +129,36 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
     
     // Таблицы
     table: ({ children }) => (
-      <div className="overflow-x-auto my-3">
-        <table className={`min-w-full border-collapse ${isDark ? 'border-white/30' : 'border-gray-300'}`}>
-          {children}
-        </table>
+      <div className="overflow-x-auto my-4 -mx-2">
+        <div className="inline-block min-w-full align-middle px-2">
+          <table className={`min-w-full border-collapse ${isDark ? 'border-white/30' : 'border-gray-300'} text-sm`}>
+            {children}
+          </table>
+        </div>
       </div>
     ),
-    thead: ({ children }) => <thead className={isDark ? 'bg-white/10' : 'bg-gray-200'}>{children}</thead>,
-    tbody: ({ children }) => <tbody>{children}</tbody>,
-    tr: ({ children }) => <tr className={isDark ? 'border-b border-white/20' : 'border-b border-gray-300'}>{children}</tr>,
+    thead: ({ children }) => (
+      <thead className={isDark ? 'bg-white/10' : 'bg-gray-100'}>
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }) => (
+      <tbody className={isDark ? 'divide-y divide-white/20' : 'divide-y divide-gray-200'}>
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }) => (
+      <tr className={isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50 transition-colors'}>
+        {children}
+      </tr>
+    ),
     th: ({ children }) => (
-      <th className={`${isDark ? 'border-white/30 text-white' : 'border-gray-300 text-gray-900'} border px-4 py-2 text-left font-bold`}>
+      <th className={`${isDark ? 'border-white/30 text-white' : 'border-gray-300 text-gray-900'} border px-3 py-2 text-left font-semibold align-top`}>
         {children}
       </th>
     ),
     td: ({ children }) => (
-      <td className={`${isDark ? 'border-white/30 text-white/90' : 'border-gray-300 text-gray-800'} border px-4 py-2`}>
+      <td className={`${isDark ? 'border-white/30 text-white/90' : 'border-gray-300 text-gray-800'} border px-3 py-2 align-top`}>
         {children}
       </td>
     ),

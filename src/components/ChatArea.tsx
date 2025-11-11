@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message } from '../types/message';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getMarkdownComponents } from '../utils/markdownComponents';
 
 interface ChatAreaProps {
@@ -143,7 +144,10 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
                   )}
 
                   <div className="break-words max-w-none">
-                    <Markdown components={getMarkdownComponents(message.type === 'user')}>
+                    <Markdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={getMarkdownComponents(message.type === 'user')}
+                    >
                       {message.content}
                     </Markdown>
                   </div>
@@ -179,9 +183,28 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
                     >
                       {message.timestamp.toLocaleTimeString('ru-RU', TIME_FORMAT_OPTIONS)}
                     </div>
-                    {message.type === 'assistant' && message.aiResponse?.tokens && (
-                      <div className="text-xs text-gray-400">
-                        {message.aiResponse.tokens.toLocaleString('ru-RU')} токенов
+                    {message.type === 'assistant' && message.aiResponse && (
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        {message.aiResponse.responseTime !== undefined && (
+                          <span>
+                            {(message.aiResponse.responseTime / 1000).toFixed(2)}с
+                          </span>
+                        )}
+                        {message.aiResponse.tokens !== undefined && (
+                          <span>
+                            {message.aiResponse.tokens.toLocaleString('ru-RU')} токенов
+                            {message.aiResponse.inputTokens !== undefined && message.aiResponse.outputTokens !== undefined && (
+                              <span className="text-gray-300 ml-1">
+                                ({message.aiResponse.inputTokens.toLocaleString('ru-RU')}/{message.aiResponse.outputTokens.toLocaleString('ru-RU')})
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {message.aiResponse.cost !== undefined && message.aiResponse.cost > 0 && (
+                          <span className="text-green-600 font-medium">
+                            ${message.aiResponse.cost.toFixed(6)}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -217,7 +240,7 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyPress}
-              placeholder="Спроси о фронтенд-разработке..."
+              placeholder="Спроси о фронтенд-разработке... (команды: /analyze, /help)"
               className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none overflow-hidden text-gray-800 placeholder-gray-400"
               rows={1}
               style={TEXTAREA_MAX_HEIGHT}

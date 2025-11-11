@@ -8,6 +8,10 @@ export interface AIResponse {
   references: AIReference[];
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   tokens?: number;
+  responseTime?: number; // Время ответа в миллисекундах
+  cost?: number; // Стоимость в долларах
+  inputTokens?: number; // Количество входных токенов
+  outputTokens?: number; // Количество выходных токенов
 }
 
 export interface Message {

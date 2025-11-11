@@ -97,7 +97,13 @@ export abstract class AIModel {
   /**
    * Выполняет запрос к прокси-серверу
    */
-  protected async fetchFromProxy(body: Record<string, any>): Promise<{ text: string }> {
+  protected async fetchFromProxy(body: Record<string, any>): Promise<{ 
+    text: string;
+    tokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    cost?: number;
+  }> {
     const response = await fetch(this.apiProxyUrl, {
       method: 'POST',
       headers: {
@@ -117,7 +123,13 @@ export abstract class AIModel {
       throw new Error(`Invalid response format from ${this.constructor.name}`);
     }
 
-    return data;
+    return {
+      text: data.text,
+      tokens: data.tokens,
+      inputTokens: data.inputTokens,
+      outputTokens: data.outputTokens,
+      cost: data.cost,
+    };
   }
 
   /**
@@ -135,7 +147,7 @@ export abstract class AIModel {
       const validMessages = this.validateMessages(messages);
       const requestBody = this.buildRequestBody(validMessages, this.getAdditionalRequestData());
       const data = await this.fetchFromProxy(requestBody);
-      return this.parseResponse(data.text);
+      return this.parseResponse(data.text, data);
     } catch (error) {
       console.error(`${this.constructor.name} API error:`, error);
       throw error;
@@ -181,7 +193,10 @@ export abstract class AIModel {
    * Парсит ответ AI модели в формат AIResponse
    * Может быть переопределен в конкретных реализациях
    */
-  protected parseResponse(text: string): AIResponse {
+  protected parseResponse(
+    text: string,
+    metadata?: { tokens?: number; inputTokens?: number; outputTokens?: number; cost?: number }
+  ): AIResponse {
     const cleanedText = this.removeMarkdownCodeBlocks(text);
     const trimmedText = cleanedText.trim();
     const isJsonResponse = trimmedText.startsWith('{') && trimmedText.endsWith('}');
@@ -200,7 +215,10 @@ export abstract class AIModel {
           content: aiResponse.content,
           references: Array.isArray(aiResponse.references) ? aiResponse.references : [],
           difficulty: aiResponse.difficulty || 'intermediate',
-          tokens: typeof aiResponse.tokens === 'number' ? aiResponse.tokens : undefined,
+          tokens: aiResponse.tokens ?? metadata?.tokens,
+          inputTokens: aiResponse.inputTokens ?? metadata?.inputTokens,
+          outputTokens: aiResponse.outputTokens ?? metadata?.outputTokens,
+          cost: aiResponse.cost ?? metadata?.cost,
         };
       } catch (parseError) {
         // Если не удалось распарсить JSON, возвращаем как обычный текст
@@ -208,6 +226,10 @@ export abstract class AIModel {
         return {
           content: cleanedText,
           references: [],
+          tokens: metadata?.tokens,
+          inputTokens: metadata?.inputTokens,
+          outputTokens: metadata?.outputTokens,
+          cost: metadata?.cost,
         };
       }
     } else {
@@ -215,6 +237,10 @@ export abstract class AIModel {
       return {
         content: cleanedText,
         references: [],
+        tokens: metadata?.tokens,
+        inputTokens: metadata?.inputTokens,
+        outputTokens: metadata?.outputTokens,
+        cost: metadata?.cost,
       };
     }
   }
