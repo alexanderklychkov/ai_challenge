@@ -191,12 +191,23 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
                           </span>
                         )}
                         {message.aiResponse.tokens !== undefined && (
-                          <span>
+                          <span className="relative group">
                             {message.aiResponse.tokens.toLocaleString('ru-RU')} токенов
                             {message.aiResponse.inputTokens !== undefined && message.aiResponse.outputTokens !== undefined && (
-                              <span className="text-gray-300 ml-1">
-                                ({message.aiResponse.inputTokens.toLocaleString('ru-RU')}/{message.aiResponse.outputTokens.toLocaleString('ru-RU')})
-                              </span>
+                              <>
+                                <span className="text-gray-300 ml-1">
+                                  ({message.aiResponse.inputTokens.toLocaleString('ru-RU')}/{message.aiResponse.outputTokens.toLocaleString('ru-RU')})
+                                </span>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                                  <div className="flex flex-col gap-1">
+                                    <div>Входные токены: {message.aiResponse.inputTokens.toLocaleString('ru-RU')}</div>
+                                    <div>Выходные токены: {message.aiResponse.outputTokens.toLocaleString('ru-RU')}</div>
+                                  </div>
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                                    <div className="border-4 border-transparent border-t-gray-800"></div>
+                                  </div>
+                                </div>
+                              </>
                             )}
                           </span>
                         )}

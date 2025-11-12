@@ -78,9 +78,16 @@ export async function handleYandexGPT(req, res) {
       throw new Error('Invalid response format from Yandex GPT');
     }
 
-    res.json({
+    // Извлекаем информацию о токенах из ответа
+    const usage = data.result.usage || {};
+    const responseData = {
       text: data.result.alternatives[0].message.text,
-    });
+      tokens: usage.totalTokens || usage.total_tokens,
+      inputTokens: usage.inputTextTokens || usage.input_text_tokens || usage.prompt_tokens,
+      outputTokens: usage.completionTokens || usage.completion_tokens,
+    };
+
+    res.json(responseData);
   } catch (error) {
     sendErrorResponse(res, error, 'Произошла ошибка при обращении к Yandex GPT');
   }

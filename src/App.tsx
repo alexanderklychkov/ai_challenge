@@ -13,13 +13,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
   
   const models = useMemo(() => [
-    // { model: createYandexGPTModel({ model: 'yandexgpt', temperature: 0 }), name: 'Yandex GPT. Температура: 0' },
-    // { model: createYandexGPTModel({ model: 'yandexgpt', temperature: 0.5 }), name: 'Yandex GPT. Температура: 0.5' },
-    // { model: createYandexGPTModel({ model: 'yandexgpt', temperature: 1 }), name: 'Yandex GPT. Температура: 1' },
-
-    // { model: createDeepSeekModel({ model: 'deepseek-chat', temperature: 0 }), name: 'DeepSeek. Температура: 0' },
-    // { model: createDeepSeekModel({ model: 'deepseek-chat', temperature: 1 }), name: 'DeepSeek. Температура: 1' },
-    // { model: createDeepSeekModel({ model: 'deepseek-chat', temperature: 1.5 }), name: 'DeepSeek. Температура: 1.5' },
+    { model: createYandexGPTModel({ model: 'yandexgpt' }), name: 'Yandex GPT' },
+    { model: createDeepSeekModel({ model: 'deepseek-chat' }), name: 'DeepSeek' },
 
     // HuggingFace Inference Providers примеры
     // { model: createHuggingFaceModel({ model: 'deepseek-ai/DeepSeek-R1', provider: 'fastest', temperature: 0 }), name: 'HuggingFace (DeepSeek-R1, fastest)' },
@@ -28,9 +23,8 @@ function App() {
     // { model: createHuggingFaceModel({ model: 'Qwen/Qwen2.5-7B-Instruct', provider: 'cheapest', temperature: 0.3 }), name: 'HuggingFace (Qwen2.5 7B, cheapest)' },
     // { model: createHuggingFaceModel({ model: 'google/gemma-2-9b-it', provider: 'auto', temperature: 0.4 }), name: 'HuggingFace (Gemma 2 9B)' },
     // { model: createHuggingFaceModel({ model: 'meta-llama/Llama-3.2-3B-Instruct', provider: 'cheapest', temperature: 0.3 }), name: 'HuggingFace (Llama 3.2 3B Instruct)' },
-    { model: createHuggingFaceModel({ model: 'zai-org/GLM-4.6:novita', provider: 'auto', temperature: 0.4 }), name: 'Начало списка моделей HuggingFace (Zai-Org GLM-4.6)' },
-    { model: createHuggingFaceModel({ model: 'bunnycore/Llama-3.2-1B-General-Best:featherless-ai', provider: 'cheapest', temperature: 0.3 }), name: 'Середина списка моделей HuggingFace (Llama-3.2-1B-General-Best )' },
-    { model: createHuggingFaceModel({ model: 'Cchaos/Qwen2.5-0.5B-Instruct-Gensyn-Swarm-climbing_crested_condor:featherless-ai', provider: 'cheapest', temperature: 0.3 }), name: 'Конец списка моделей HuggingFace (Qwen2.5-0.5B-Instruct-Gensyn-Swarm-climbing_crested_condor)' },
+    // { model: createHuggingFaceModel({ model: 'zai-org/GLM-4.6:novita', provider: 'auto', temperature: 0.4 }), name: 'Начало списка моделей HuggingFace (Zai-Org GLM-4.6)' },
+    // { model: createHuggingFaceModel({ model: 'bunnycore/Llama-3.2-1B-General-Best:featherless-ai', provider: 'cheapest', temperature: 0.3 }), name: 'Середина списка моделей HuggingFace (Llama-3.2-1B-General-Best )' },
   ], []);
 
   // Модель-анализатор для команды /analyze
