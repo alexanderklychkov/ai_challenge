@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Message } from '../types/message';
 import { generateId } from '../utils/generateId';
 import { AIModel, AIMessage } from '../services/aiModel';
 import { sendToMultipleModels } from '../utils/multiModel';
 import { parseCommand, executeAnalyzeCommand, executeHelpCommand } from '../utils/commands';
+import { createSummary, shouldCreateSummary, getMessagesToCompress } from '../utils/summarizer';
 
 const initialMessages: Message[] = [
   // {
@@ -26,14 +27,121 @@ interface UseChatOptions {
   models: Array<{ model: AIModel; name: string }>;
   mode?: ModelMode; // Режим работы: параллельный или цепочкой
   analyzerModel?: { model: AIModel; name: string }; // Модель для анализа (команда /analyze)
+  enableCompression?: boolean; // Включить сжатие истории
+  compressionInterval?: number; // Интервал сжатия (по умолчанию 6 сообщений)
+  compressionModel?: { model: AIModel; name: string }; // Модель для создания summary (если не указана, используется первая модель)
+}
+
+export interface TokenStatistics {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  summaryTokens: number; // Токены, потраченные на создание summary
+  compressedMessages: number; // Количество сжатых сообщений
 }
 
 export const useChat = (options: UseChatOptions) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isCreatingSummaryRef = useRef(false); // Флаг для предотвращения одновременного создания summary
   
-  const { models, mode = 'parallel', analyzerModel } = options;
+  const { 
+    models, 
+    mode = 'parallel', 
+    analyzerModel,
+    enableCompression = false,
+    compressionInterval = 6,
+    compressionModel,
+  } = options;
+
+  // Вычисляем статистику токенов
+  const tokenStatistics = useMemo<TokenStatistics>(() => {
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCost = 0;
+    let summaryTokens = 0;
+    let compressedMessages = 0;
+
+    messages.forEach((msg) => {
+      if (msg.aiResponse) {
+        // Явно преобразуем значения в числа, чтобы избежать конкатенации строк
+        const inputTokens = Number(msg.aiResponse.inputTokens) || 0;
+        const outputTokens = Number(msg.aiResponse.outputTokens) || 0;
+        const cost = Number(msg.aiResponse.cost) || 0;
+        
+        if (msg.isSummary) {
+          summaryTokens += inputTokens + outputTokens;
+          compressedMessages++;
+        } else {
+          totalInputTokens += inputTokens;
+          totalOutputTokens += outputTokens;
+        }
+        totalCost += cost;
+      }
+    });
+
+    return {
+      totalInputTokens,
+      totalOutputTokens,
+      totalTokens: totalInputTokens + totalOutputTokens,
+      totalCost,
+      summaryTokens,
+      compressedMessages,
+    };
+  }, [messages]);
+
+  // Получает историю сообщений для отправки в AI, учитывая сжатие
+  const getConversationHistory = useCallback((allMessages: Message[], limit?: number): Message[] => {
+    // Если сжатие отключено, возвращаем обычную историю
+    if (!enableCompression) {
+      return limit ? allMessages.slice(-limit) : allMessages;
+    }
+
+    // Собираем историю с учетом summary
+    // Если сообщение имеет compressedBy, заменяем его на соответствующий summary
+    const history: Message[] = [];
+    const summaryMap = new Map<string, Message>(); // Map: summaryId -> summary message
+    
+    // Сначала собираем все summary в map
+    allMessages.forEach((msg) => {
+      if (msg.isSummary && msg.id) {
+        summaryMap.set(msg.id, msg);
+      }
+    });
+
+    // Проходим с конца и собираем сообщения
+    const addedSummaryIds = new Set<string>(); // Отслеживаем уже добавленные summary
+    
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const msg = allMessages[i];
+      
+      // Если это summary, пропускаем его (он будет использован для замены сжатых сообщений)
+      if (msg.isSummary) {
+        continue;
+      }
+      
+      // Если сообщение сжато, заменяем его на summary
+      if (msg.compressedBy) {
+        const summary = summaryMap.get(msg.compressedBy);
+        if (summary && !addedSummaryIds.has(summary.id)) {
+          history.unshift(summary);
+          addedSummaryIds.add(summary.id);
+        }
+      } else {
+        // Добавляем обычное сообщение, если оно не было сжато
+        history.unshift(msg);
+      }
+
+      // Ограничиваем историю, если указан лимит
+      if (limit && history.length >= limit) {
+        break;
+      }
+    }
+
+    return history;
+  }, [enableCompression]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -136,12 +244,16 @@ export const useChat = (options: UseChatOptions) => {
     setError(null);
 
     try {
-      const recentMessages = messages.slice(-10);
+      // Получаем историю с учетом сжатия
+      const recentMessages = getConversationHistory(messages, 10);
       
       if (mode === 'parallel') {
         // Параллельный режим: все модели отвечают одновременно на один вопрос
         const aiMessages = models[0].model.convertMessages([
-          ...recentMessages,
+          ...recentMessages.map((msg) => ({
+            type: msg.type as 'user' | 'assistant',
+            content: msg.content,
+          })),
           { type: 'user', content: content.trim() },
         ]);
 
@@ -156,7 +268,43 @@ export const useChat = (options: UseChatOptions) => {
           modelName,
         }));
 
-        setMessages((prev) => [...prev, ...assistantMessages]);
+        setMessages((prev) => {
+          const updated = [...prev, ...assistantMessages];
+          
+          // Проверяем, нужно ли создать summary после добавления ответов
+          if (enableCompression && !isCreatingSummaryRef.current && shouldCreateSummary(updated, compressionInterval)) {
+            // Устанавливаем флаг, чтобы предотвратить повторное создание
+            isCreatingSummaryRef.current = true;
+            
+            // Создаем summary асинхронно, не блокируя UI
+            const modelForCompression = compressionModel || models[0];
+            const messagesToCompress = getMessagesToCompress(updated, compressionInterval);
+            
+            createSummary(messagesToCompress, modelForCompression.model, modelForCompression.name)
+              .then((summaryMessage) => {
+                setMessages((current) => {
+                  // Помечаем оригинальные сообщения как сжатые
+                  const updated = current.map((msg) => {
+                    if (messagesToCompress.some((m) => m.id === msg.id)) {
+                      return { ...msg, compressedBy: summaryMessage.id };
+                    }
+                    return msg;
+                  });
+                  // Добавляем summary
+                  return [...updated, summaryMessage];
+                });
+              })
+              .catch((err) => {
+                console.error('Failed to create summary:', err);
+              })
+              .finally(() => {
+                // Сбрасываем флаг после завершения
+                isCreatingSummaryRef.current = false;
+              });
+          }
+          
+          return updated;
+        });
       } else if (mode === 'chain') {
         // Режим цепочки (старая логика): модели отвечают последовательно, каждая видит ответы предыдущих
         let conversationHistory: Message[] = [...recentMessages, userMessage];
@@ -190,7 +338,42 @@ export const useChat = (options: UseChatOptions) => {
             };
 
             conversationHistory = [...conversationHistory, assistantMessage];
-            setMessages((prev) => [...prev, assistantMessage]);
+            setMessages((prev) => {
+              const updated = [...prev, assistantMessage];
+              
+              // Проверяем, нужно ли создать summary после добавления ответа
+              if (enableCompression && !isCreatingSummaryRef.current && shouldCreateSummary(updated, compressionInterval)) {
+                // Устанавливаем флаг, чтобы предотвратить повторное создание
+                isCreatingSummaryRef.current = true;
+                
+                const modelForCompression = compressionModel || models[0];
+                const messagesToCompress = getMessagesToCompress(updated, compressionInterval);
+                
+                createSummary(messagesToCompress, modelForCompression.model, modelForCompression.name)
+                  .then((summaryMessage) => {
+                    setMessages((current) => {
+                      // Помечаем оригинальные сообщения как сжатые
+                      const updated = current.map((msg) => {
+                        if (messagesToCompress.some((m) => m.id === msg.id)) {
+                          return { ...msg, compressedBy: summaryMessage.id };
+                        }
+                        return msg;
+                      });
+                      // Добавляем summary
+                      return [...updated, summaryMessage];
+                    });
+                  })
+                  .catch((err) => {
+                    console.error('Failed to create summary:', err);
+                  })
+                  .finally(() => {
+                    // Сбрасываем флаг после завершения
+                    isCreatingSummaryRef.current = false;
+                  });
+              }
+              
+              return updated;
+            });
           } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка';
             const errorMessageObj: Message = {
@@ -268,6 +451,40 @@ export const useChat = (options: UseChatOptions) => {
 
         // Ждем завершения всех промисов (для обработки ошибок)
         await Promise.allSettled(promises);
+        
+        // Проверяем сжатие после завершения всех ответов
+        setMessages((current) => {
+          if (enableCompression && !isCreatingSummaryRef.current && shouldCreateSummary(current, compressionInterval)) {
+            // Устанавливаем флаг, чтобы предотвратить повторное создание
+            isCreatingSummaryRef.current = true;
+            
+            const modelForCompression = compressionModel || models[0];
+            const messagesToCompress = getMessagesToCompress(current, compressionInterval);
+            
+            createSummary(messagesToCompress, modelForCompression.model, modelForCompression.name)
+              .then((summaryMessage) => {
+                setMessages((prev) => {
+                  // Помечаем оригинальные сообщения как сжатые
+                  const updated = prev.map((msg) => {
+                    if (messagesToCompress.some((m) => m.id === msg.id)) {
+                      return { ...msg, compressedBy: summaryMessage.id };
+                    }
+                    return msg;
+                  });
+                  // Добавляем summary
+                  return [...updated, summaryMessage];
+                });
+              })
+              .catch((err) => {
+                console.error('Failed to create summary:', err);
+              })
+              .finally(() => {
+                // Сбрасываем флаг после завершения
+                isCreatingSummaryRef.current = false;
+              });
+          }
+          return current;
+        });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Произошла ошибка при обращении к AI модели';
@@ -284,7 +501,7 @@ export const useChat = (options: UseChatOptions) => {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, models, mode, analyzerModel]);
+  }, [messages, models, mode, analyzerModel, enableCompression, compressionInterval, compressionModel, getConversationHistory]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -297,5 +514,6 @@ export const useChat = (options: UseChatOptions) => {
     error,
     sendMessage,
     clearMessages,
+    tokenStatistics,
   };
 };

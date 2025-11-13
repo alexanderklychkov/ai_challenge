@@ -21,4 +21,7 @@ export interface Message {
   timestamp: Date;
   aiResponse?: AIResponse; // Для assistant сообщений с новым форматом
   modelName?: string; // Название модели, которая сгенерировала ответ
+  isSummary?: boolean; // Флаг, указывающий, что это сжатое сообщение (summary)
+  originalMessageIds?: string[]; // ID оригинальных сообщений, которые были сжаты в это summary
+  compressedBy?: string; // ID summary сообщения, которое заменило это сообщение в истории для AI
 }

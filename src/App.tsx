@@ -4,17 +4,17 @@ import ChatArea from './components/ChatArea.tsx';
 import ContextPanel from './components/ContextPanel.tsx';
 import { useChat } from './hooks/useChat';
 import { createYandexGPTModel } from './services/yandexGPT';
-import { createDeepSeekModel } from './services/deepSeek';
 import { createHuggingFaceModel } from './services/huggingFace';
 
 export type ActiveTab = 'chat' | 'knowledge' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('chat');
+  const [enableCompression, setEnableCompression] = useState(false);
   
   const models = useMemo(() => [
     { model: createYandexGPTModel({ model: 'yandexgpt' }), name: 'Yandex GPT' },
-    { model: createDeepSeekModel({ model: 'deepseek-chat' }), name: 'DeepSeek' },
+    // { model: createDeepSeekModel({ model: 'deepseek-chat' }), name: 'DeepSeek' },
 
     // HuggingFace Inference Providers примеры
     // { model: createHuggingFaceModel({ model: 'deepseek-ai/DeepSeek-R1', provider: 'fastest', temperature: 0 }), name: 'HuggingFace (DeepSeek-R1, fastest)' },
@@ -38,16 +38,27 @@ function App() {
   }), []);
   
   // Режим работы: 'parallel' - параллельно, 'chain' - цепочкой
-  const { messages, isLoading, sendMessage, clearMessages } = useChat({ 
+  const { messages, isLoading, sendMessage, clearMessages, tokenStatistics } = useChat({ 
     models, 
     mode: 'chain-fast', // или 'parallel' для параллельного режима
-    analyzerModel // Модель для анализа ответов (команда /analyze)
+    analyzerModel, // Модель для анализа ответов (команда /analyze)
+    enableCompression, // Включить сжатие истории
+    compressionInterval: 6, // Сжимать каждые 6 сообщений
+    compressionModel: models[0], // Модель для создания summary (используем первую модель)
   });
 
   return (
     <div className="flex h-screen bg-white text-gray-800 overflow-hidden">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <ChatArea messages={messages} isLoading={isLoading} onSendMessage={sendMessage} onClearMessages={clearMessages} />
+      <ChatArea 
+        messages={messages} 
+        isLoading={isLoading} 
+        onSendMessage={sendMessage} 
+        onClearMessages={clearMessages}
+        tokenStatistics={tokenStatistics}
+        enableCompression={enableCompression}
+        onToggleCompression={setEnableCompression}
+      />
       <ContextPanel />
     </div>
   );

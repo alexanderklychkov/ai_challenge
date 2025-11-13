@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message } from '../types/message';
+import { TokenStatistics } from '../hooks/useChat';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getMarkdownComponents } from '../utils/markdownComponents';
@@ -9,6 +10,9 @@ interface ChatAreaProps {
   isLoading?: boolean
   onSendMessage: (content: string) => void
   onClearMessages: () => void
+  tokenStatistics?: TokenStatistics
+  enableCompression?: boolean
+  onToggleCompression?: (enabled: boolean) => void
 }
 
 const DOT_STYLES = [
@@ -24,7 +28,15 @@ const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 } as const;
 
-const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages }: ChatAreaProps) => {
+const ChatArea = ({ 
+  messages, 
+  isLoading = false, 
+  onSendMessage, 
+  onClearMessages,
+  tokenStatistics,
+  enableCompression = false,
+  onToggleCompression,
+}: ChatAreaProps) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -68,7 +80,7 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
       {/* Заголовок */}
       <header className="border-b border-gray-200 px-4 md:px-6 py-4 bg-white">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl md:text-2xl font-bold text-gray-800">
               Frontend Mentor AI
             </h1>
@@ -76,17 +88,58 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
               Ваш помощник в изучении фронтенд-разработки
             </p>
           </div>
-          {messages.length > 0 && (
-            <button
-              onClick={onClearMessages}
-              disabled={isLoading}
-              className="flex-shrink-0 px-4 py-2 cursor-pointer text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-400 transition-colors"
-              aria-label="Очистить чат"
-              title="Очистить историю чата"
-            >
-              Очистить чат
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Переключатель сжатия */}
+            {onToggleCompression && (
+              <div className="flex items-center gap-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableCompression}
+                    onChange={(e) => onToggleCompression(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`relative w-11 h-6 rounded-full transition-colors ${
+                    enableCompression ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}>
+                    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                      enableCompression ? 'transform translate-x-5' : ''
+                    }`}></div>
+                  </div>
+                  <span className="ml-2 text-sm text-gray-700">Сжатие</span>
+                </label>
+              </div>
+            )}
+            {/* Статистика токенов */}
+            {tokenStatistics && messages.length > 0 && (
+              <div className="text-xs text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                <div className="flex flex-col gap-0.5">
+                  <div>Токены: {tokenStatistics.totalTokens.toLocaleString('ru-RU')}</div>
+                  {tokenStatistics.compressedMessages > 0 && (
+                    <div className="text-gray-500">
+                      Сжато: {tokenStatistics.compressedMessages} ({tokenStatistics.summaryTokens.toLocaleString('ru-RU')} токенов)
+                    </div>
+                  )}
+                  {tokenStatistics.totalCost > 0 && (
+                    <div className="text-green-600 font-medium">
+                      ${tokenStatistics.totalCost.toFixed(6)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {messages.length > 0 && (
+              <button
+                onClick={onClearMessages}
+                disabled={isLoading}
+                className="flex-shrink-0 px-4 py-2 cursor-pointer text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-400 transition-colors"
+                aria-label="Очистить чат"
+                title="Очистить историю чата"
+              >
+                Очистить чат
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -113,11 +166,24 @@ const ChatArea = ({ messages, isLoading = false, onSendMessage, onClearMessages 
                     message.type === 'user'
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-100 text-gray-800'
-                  }`}
+                  } ${message.compressedBy ? 'opacity-60 border-2 border-purple-300' : ''}`}
                 >
+                  {/* Индикатор сжатого сообщения */}
+                  {message.compressedBy && (
+                    <div className="mb-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                        📦 Сжато (не отправляется в AI)
+                      </span>
+                    </div>
+                  )}
                   {/* Model name и Difficulty badge для assistant сообщений */}
                   {message.type === 'assistant' && (
                     <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      {message.isSummary && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
+                          📦 Сжатие истории
+                        </span>
+                      )}
                       {message.modelName && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {message.modelName}
