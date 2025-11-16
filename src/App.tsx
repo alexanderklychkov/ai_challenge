@@ -38,7 +38,7 @@ function App() {
   }), []);
   
   // Режим работы: 'parallel' - параллельно, 'chain' - цепочкой
-  const { messages, isLoading, sendMessage, clearMessages, tokenStatistics } = useChat({ 
+  const { messages, isLoading, isLoadingMessages, sendMessage, clearMessages, tokenStatistics } = useChat({ 
     models, 
     mode: 'chain-fast', // или 'parallel' для параллельного режима
     analyzerModel, // Модель для анализа ответов (команда /analyze)
@@ -52,7 +52,8 @@ function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <ChatArea 
         messages={messages} 
-        isLoading={isLoading} 
+        isLoading={isLoading}
+        isLoadingMessages={isLoadingMessages}
         onSendMessage={sendMessage} 
         onClearMessages={clearMessages}
         tokenStatistics={tokenStatistics}

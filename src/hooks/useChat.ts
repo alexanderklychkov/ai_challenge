@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Message } from '../types/message';
 import { generateId } from '../utils/generateId';
 import { AIModel, AIMessage } from '../services/aiModel';
 import { sendToMultipleModels } from '../utils/multiModel';
 import { parseCommand, executeAnalyzeCommand, executeHelpCommand } from '../utils/commands';
 import { createSummary, shouldCreateSummary, getMessagesToCompress } from '../utils/summarizer';
+import { loadMessages, saveMessages, clearMessages as clearMessagesStorage } from '../services/storage';
 
 const initialMessages: Message[] = [
   // {
@@ -44,8 +45,11 @@ export interface TokenStatistics {
 export const useChat = (options: UseChatOptions) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true); // Состояние загрузки сообщений
   const [error, setError] = useState<string | null>(null);
   const isCreatingSummaryRef = useRef(false); // Флаг для предотвращения одновременного создания summary
+  const isInitialLoadRef = useRef(true); // Флаг для отслеживания первоначальной загрузки (начинаем с true)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Таймер для отложенного сохранения
   
   const { 
     models, 
@@ -503,14 +507,59 @@ export const useChat = (options: UseChatOptions) => {
     }
   }, [messages, models, mode, analyzerModel, enableCompression, compressionInterval, compressionModel, getConversationHistory]);
 
-  const clearMessages = useCallback(() => {
+  // Загрузка сообщений при монтировании компонента
+  useEffect(() => {
+    loadMessages().then((loadedMessages) => {
+      if (loadedMessages.length > 0) {
+        setMessages(loadedMessages);
+      }
+      // После загрузки разрешаем автоматическое сохранение
+      isInitialLoadRef.current = false;
+      setIsLoadingMessages(false);
+    }).catch((error) => {
+      console.error('Ошибка при загрузке сообщений:', error);
+      setIsLoadingMessages(false);
+    });
+  }, []);
+
+  // Автоматическое сохранение сообщений при их изменении (с debounce)
+  useEffect(() => {
+    // Пропускаем сохранение при первоначальной загрузке
+    if (isInitialLoadRef.current) {
+      return;
+    }
+
+    // Очищаем предыдущий таймер
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Устанавливаем новый таймер для отложенного сохранения (500ms debounce)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveMessages(messages).catch((error) => {
+        console.error('Ошибка при автоматическом сохранении сообщений:', error);
+      });
+    }, 500);
+
+    // Очистка таймера при размонтировании
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [messages]);
+
+  const clearMessages = useCallback(async () => {
     setMessages([]);
     setError(null);
+    // Очищаем сообщения на сервере
+    await clearMessagesStorage();
   }, []);
 
   return {
     messages,
     isLoading,
+    isLoadingMessages,
     error,
     sendMessage,
     clearMessages,

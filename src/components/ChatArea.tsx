@@ -8,6 +8,7 @@ import { getMarkdownComponents } from '../utils/markdownComponents';
 interface ChatAreaProps {
   messages: Message[]
   isLoading?: boolean
+  isLoadingMessages?: boolean
   onSendMessage: (content: string) => void
   onClearMessages: () => void
   tokenStatistics?: TokenStatistics
@@ -30,7 +31,8 @@ const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
 
 const ChatArea = ({ 
   messages, 
-  isLoading = false, 
+  isLoading = false,
+  isLoadingMessages = false,
   onSendMessage, 
   onClearMessages,
   tokenStatistics,
@@ -145,7 +147,22 @@ const ChatArea = ({
 
       {/* Область сообщений */}
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4">
-        {messages.length === 0 ? (
+        {isLoadingMessages ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-gray-400">
+              <div className="flex justify-center space-x-2 mb-4">
+                {DOT_STYLES.map((style, index) => (
+                  <div
+                    key={index}
+                    className="w-3 h-3 bg-gray-400 rounded-full animate-bounce"
+                    style={style}
+                  />
+                ))}
+              </div>
+              <p className="text-lg">Загрузка истории сообщений...</p>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-400">
               <p className="text-lg">Начните диалог</p>
