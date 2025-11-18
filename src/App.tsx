@@ -5,6 +5,7 @@ import ContextPanel from './components/ContextPanel.tsx';
 import { useChat } from './hooks/useChat';
 import { createYandexGPTModel } from './services/yandexGPT';
 import { createHuggingFaceModel } from './services/huggingFace';
+import { createDeepSeekModel } from './services/deepSeek';
 
 export type ActiveTab = 'chat' | 'knowledge' | 'settings';
 
@@ -13,8 +14,8 @@ function App() {
   const [enableCompression, setEnableCompression] = useState(false);
   
   const models = useMemo(() => [
-    { model: createYandexGPTModel({ model: 'yandexgpt' }), name: 'Yandex GPT' },
-    // { model: createDeepSeekModel({ model: 'deepseek-chat' }), name: 'DeepSeek' },
+    // { model: createYandexGPTModel({ model: 'yandexgpt' }), name: 'Yandex GPT' },
+    { model: createDeepSeekModel({ model: 'deepseek-chat', enableMCP: true }), name: 'DeepSeek (с MCP)' },
 
     // HuggingFace Inference Providers примеры
     // { model: createHuggingFaceModel({ model: 'deepseek-ai/DeepSeek-R1', provider: 'fastest', temperature: 0 }), name: 'HuggingFace (DeepSeek-R1, fastest)' },
