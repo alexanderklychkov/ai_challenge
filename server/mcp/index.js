@@ -10,6 +10,7 @@ import { registerTaskTools } from './tools/tasks.js';
 import { registerProjectTools } from './tools/projects.js';
 import { registerLabelTools } from './tools/labels.js';
 import { registerSectionTools } from './tools/sections.js';
+import { registerReminderTool } from './tools/reminder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,6 +49,7 @@ async function startMCPServer() {
   registerProjectTools(server, api);
   registerLabelTools(server, api);
   registerSectionTools(server, api);
+  registerReminderTool(server, api);
 
   // Создаем транспорт для stdio
   const transport = new StdioServerTransport();

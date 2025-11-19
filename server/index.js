@@ -9,6 +9,7 @@ import { handleDeepSeek } from './handlers/deepSeek.js';
 import { handleChatGPT } from './handlers/chatGPT.js';
 import { handleHuggingFace } from './handlers/huggingFace.js';
 import { loadMessages, saveMessages, clearMessages } from './utils/storage.js';
+import { startTelegramBot } from './bot/telegramBot.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -63,7 +64,10 @@ app.delete('/api/messages', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  
+  // Запускаем Telegram бота
+  await startTelegramBot();
 });
 
