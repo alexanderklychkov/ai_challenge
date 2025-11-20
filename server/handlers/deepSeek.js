@@ -36,6 +36,15 @@ export async function handleDeepSeek(req, res) {
     // Выполняем запрос с поддержкой tool_calls
     let responseData = await processChatCompletion(apiKey, requestBody, enableMCP);
 
+    // Убеждаемся, что responseData содержит поле text
+    if (!responseData || typeof responseData.text === 'undefined') {
+      console.error('[DeepSeek] Response data missing text field:', JSON.stringify(responseData, null, 2));
+      return res.status(500).json({
+        error: 'Ошибка: сервер вернул неожиданный формат ответа',
+        text: 'Произошла ошибка при обработке запроса. Попробуйте еще раз.',
+      });
+    }
+
     res.json(responseData);
   } catch (error) {
     console.error('DeepSeek API error:', error);
@@ -48,12 +57,14 @@ export async function handleDeepSeek(req, res) {
 /**
  * Обрабатывает chat completion с поддержкой tool_calls
  */
-async function processChatCompletion(apiKey, requestBody, enableMCP, maxIterations = 5) {
+async function processChatCompletion(apiKey, requestBody, enableMCP, maxIterations = 10) {
   let iteration = 0;
   let allMessages = [...requestBody.messages];
   let finalText = '';
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  const usedTools = []; // Отслеживаем использованные инструменты
+  let consecutiveToolCalls = 0; // Счетчик последовательных вызовов инструментов
 
   while (iteration < maxIterations) {
     const currentRequestBody = {
@@ -76,6 +87,12 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
     }
 
     const data = await response.json();
+    
+    // Проверяем наличие choices
+    if (!data.choices || !data.choices[0]) {
+      throw new Error('DeepSeek API вернул неожиданный формат ответа: отсутствуют choices');
+    }
+    
     const choice = data.choices[0];
     const message = choice.message;
 
@@ -90,6 +107,8 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
 
     // Проверяем, есть ли tool_calls
     if (message.tool_calls && message.tool_calls.length > 0 && enableMCP) {
+      consecutiveToolCalls++;
+      
       // Выполняем вызовы инструментов
       const toolResults = [];
       
@@ -97,6 +116,13 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
         try {
           const toolArgs = JSON.parse(toolCall.function.arguments || '{}');
           console.log(`[DeepSeek] Вызов локального MCP tool: ${toolCall.function.name} с аргументами:`, JSON.stringify(toolArgs, null, 2));
+          
+          // Отслеживаем использование инструмента
+          usedTools.push({
+            name: toolCall.function.name,
+            args: toolArgs,
+            timestamp: new Date().toISOString(),
+          });
           
           const toolResult = await callLocalMCPTool(toolCall.function.name, toolArgs);
           
@@ -132,6 +158,14 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
           const errorMessage = error.message || 'Неизвестная ошибка';
           console.error(`[DeepSeek] Ошибка при вызове локального MCP tool ${toolCall.function.name}:`, errorMessage);
           
+          // Отслеживаем использование инструмента даже при ошибке
+          usedTools.push({
+            name: toolCall.function.name,
+            args: JSON.parse(toolCall.function.arguments || '{}'),
+            timestamp: new Date().toISOString(),
+            error: errorMessage,
+          });
+          
           toolResults.push({
             tool_call_id: toolCall.id,
             role: 'tool',
@@ -142,16 +176,95 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
       }
 
       // Добавляем результаты инструментов в историю
+      // ВАЖНО: tool responses должны идти сразу после assistant message с tool_calls
       allMessages.push(...toolResults);
+      
+      // Если приближаемся к максимальному количеству итераций или модель слишком много раз вызывает инструменты,
+      // добавляем системное сообщение ПЕРЕД следующим запросом (не между tool_calls и tool responses)
+      if ((iteration >= maxIterations - 2 || consecutiveToolCalls >= 3) && iteration < maxIterations - 1) {
+        // Добавляем сообщение только после всех tool responses
+        allMessages.push({
+          role: 'user',
+          content: 'Ты уже выполнил несколько инструментов. Пожалуйста, дай финальный ответ пользователю на основе результатов. Не вызывай больше инструментов, просто дай текстовый ответ.',
+        });
+        consecutiveToolCalls = 0; // Сбрасываем счетчик
+      }
       
       // Продолжаем итерацию для получения финального ответа
       iteration++;
       continue;
     } else {
       // Нет tool_calls, возвращаем финальный ответ
+      consecutiveToolCalls = 0; // Сбрасываем счетчик при получении текстового ответа
       finalText = message.content || '';
       break;
     }
+  }
+
+  // Если достигли максимального количества итераций без финального ответа
+  if (!finalText && iteration >= maxIterations) {
+    // Делаем последнюю попытку получить финальный ответ без инструментов
+    try {
+      allMessages.push({
+        role: 'user',
+        content: 'Пожалуйста, дай финальный ответ на основе всех выполненных инструментов. Не вызывай больше инструментов.',
+      });
+      
+      const finalRequestBody = {
+        ...requestBody,
+        messages: allMessages,
+        tools: undefined, // Убираем инструменты для финального запроса
+        tool_choice: undefined,
+      };
+      
+      const finalResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(finalRequestBody),
+      });
+      
+      if (finalResponse.ok) {
+        const finalData = await finalResponse.json();
+        if (finalData.choices && finalData.choices[0] && finalData.choices[0].message) {
+          finalText = finalData.choices[0].message.content || '';
+          if (finalData.usage) {
+            totalInputTokens += finalData.usage.prompt_tokens || 0;
+            totalOutputTokens += finalData.usage.completion_tokens || 0;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[DeepSeek] Ошибка при финальном запросе:', error);
+    }
+    
+    // Если все еще нет ответа, формируем сводку
+    if (!finalText) {
+      const toolsSummary = usedTools.length > 0 
+        ? `\n\nИспользованные инструменты:\n${usedTools.map(t => `- ${t.name}${t.error ? ' (ошибка: ' + t.error + ')' : ''}`).join('\n')}`
+        : '';
+      
+      // Если были выполнены инструменты, формируем ответ на основе их результатов
+      if (usedTools.length > 0) {
+        // Берем последние результаты инструментов из истории
+        const lastToolResults = allMessages
+          .filter(m => m.role === 'tool')
+          .slice(-usedTools.length)
+          .map(m => `${m.name}: ${typeof m.content === 'string' ? m.content.substring(0, 300) : JSON.stringify(m.content).substring(0, 300)}`)
+          .join('\n\n');
+        
+        finalText = `Выполнены следующие действия:${toolsSummary}\n\nРезультаты выполнения инструментов:\n${lastToolResults}`;
+      } else {
+        finalText = `Достигнуто максимальное количество итераций (${maxIterations}). Возможно, требуется больше времени для обработки.${toolsSummary}`;
+      }
+    }
+  }
+
+  // Убеждаемся, что finalText не пустой
+  if (!finalText) {
+    finalText = 'Получен пустой ответ от модели.';
   }
 
   return {
@@ -159,6 +272,7 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
     tokens: totalInputTokens + totalOutputTokens,
     inputTokens: totalInputTokens,
     outputTokens: totalOutputTokens,
+    usedTools: usedTools.length > 0 ? usedTools : undefined, // Добавляем информацию об использованных инструментах
   };
 }
 

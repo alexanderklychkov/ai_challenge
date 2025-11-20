@@ -13,31 +13,55 @@ const Sidebar = ({ activeTab, setActiveTab }: SidebarProps) => {
   ];
 
   return (
-    <aside className="hidden md:flex flex-col items-center w-[60px] border-r border-gray-200 bg-white">
+    <aside className="hidden md:flex flex-col items-center w-[70px] border-r border-[#2a2a3a] bg-[#151520]/80 backdrop-blur-xl relative">
+      {/* Градиентная линия сверху */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent"></div>
+      
       {/* Логотип */}
-      <div className="w-full flex items-center justify-center h-16 border-b border-gray-200">
-        <div className="text-2xl font-bold text-gray-800">&lt;/&gt;</div>
+      <div className="w-full flex items-center justify-center h-16 border-b border-[#2a2a3a] relative group">
+        <div className="text-2xl font-bold gradient-text relative z-10">&lt;/&gt;</div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#00f0ff]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
       </div>
 
       {/* Навигационные иконки */}
-      <nav className="flex flex-col items-center w-full flex-1 pt-4">
+      <nav className="flex flex-col items-center w-full flex-1 pt-4 gap-2">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={`
-              w-full flex flex-col items-center justify-center py-4 transition-all duration-200
+              group relative w-full flex flex-col items-center justify-center py-4 transition-all duration-300
               ${activeTab === item.id 
-                ? 'bg-gray-100 text-gray-900' 
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                ? 'text-[#00f0ff]' 
+                : 'text-[#a0a0b0] hover:text-[#e0e0e8]'
               }
             `}
             aria-label={item.label}
           >
-            <span className="text-2xl">{item.icon}</span>
+            {/* Активный индикатор */}
+            {activeTab === item.id && (
+              <>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#00f0ff] to-[#b026ff] rounded-r-full"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-[#00f0ff]/10 to-transparent rounded-lg"></div>
+              </>
+            )}
+            
+            <span className={`text-2xl relative z-10 transition-transform duration-300 ${activeTab === item.id ? 'scale-110' : 'group-hover:scale-105'}`}>
+              {item.icon}
+            </span>
+            
+            {/* Эффект свечения при наведении */}
+            <div className={`absolute inset-0 rounded-lg transition-opacity duration-300 ${
+              activeTab === item.id 
+                ? 'opacity-100 bg-[#00f0ff]/10 shadow-[0_0_20px_rgba(0,240,255,0.3)]' 
+                : 'opacity-0 group-hover:opacity-100 bg-[#00f0ff]/5'
+            }`}></div>
           </button>
         ))}
       </nav>
+      
+      {/* Градиентная линия снизу */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#b026ff] to-transparent"></div>
     </aside>
   );
 };

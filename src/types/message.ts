@@ -3,6 +3,13 @@ export interface AIReference {
   url: string;
 }
 
+export interface UsedTool {
+  name: string;
+  args?: any;
+  timestamp?: string;
+  error?: string;
+}
+
 export interface AIResponse {
   content: string;
   references: AIReference[];
@@ -12,6 +19,7 @@ export interface AIResponse {
   cost?: number; // Стоимость в долларах
   inputTokens?: number; // Количество входных токенов
   outputTokens?: number; // Количество выходных токенов
+  usedTools?: UsedTool[]; // Список использованных MCP инструментов
 }
 
 export interface Message {

@@ -25,6 +25,7 @@ const initialMessages: Message[] = [
 export type ModelMode = 'parallel' | 'chain' | 'chain-fast';
 
 interface UseChatOptions {
+  chatId: string; // ID текущего чата
   models: Array<{ model: AIModel; name: string }>;
   mode?: ModelMode; // Режим работы: параллельный или цепочкой
   analyzerModel?: { model: AIModel; name: string }; // Модель для анализа (команда /analyze)
@@ -52,6 +53,7 @@ export const useChat = (options: UseChatOptions) => {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Таймер для отложенного сохранения
   
   const { 
+    chatId,
     models, 
     mode = 'parallel', 
     analyzerModel,
@@ -507,9 +509,13 @@ export const useChat = (options: UseChatOptions) => {
     }
   }, [messages, models, mode, analyzerModel, enableCompression, compressionInterval, compressionModel, getConversationHistory]);
 
-  // Загрузка сообщений при монтировании компонента
+  // Загрузка сообщений при монтировании компонента или смене chatId
   useEffect(() => {
-    loadMessages().then((loadedMessages) => {
+    setIsLoadingMessages(true);
+    isInitialLoadRef.current = true;
+    setMessages([]);
+    
+    loadMessages(chatId).then((loadedMessages) => {
       if (loadedMessages.length > 0) {
         setMessages(loadedMessages);
       }
@@ -519,8 +525,9 @@ export const useChat = (options: UseChatOptions) => {
     }).catch((error) => {
       console.error('Ошибка при загрузке сообщений:', error);
       setIsLoadingMessages(false);
+      isInitialLoadRef.current = false;
     });
-  }, []);
+  }, [chatId]);
 
   // Автоматическое сохранение сообщений при их изменении (с debounce)
   useEffect(() => {
@@ -536,7 +543,11 @@ export const useChat = (options: UseChatOptions) => {
 
     // Устанавливаем новый таймер для отложенного сохранения (500ms debounce)
     saveTimeoutRef.current = setTimeout(() => {
-      saveMessages(messages).catch((error) => {
+      // Сохраняем все сообщения, включая ответы AI
+      saveMessages(chatId, messages).then(() => {
+        // После сохранения обновляем счетчик на сервере
+        // Сервер автоматически обновит messageCount при сохранении
+      }).catch((error) => {
         console.error('Ошибка при автоматическом сохранении сообщений:', error);
       });
     }, 500);
@@ -547,14 +558,14 @@ export const useChat = (options: UseChatOptions) => {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [messages]);
+  }, [messages, chatId]);
 
   const clearMessages = useCallback(async () => {
     setMessages([]);
     setError(null);
     // Очищаем сообщения на сервере
-    await clearMessagesStorage();
-  }, []);
+    await clearMessagesStorage(chatId);
+  }, [chatId]);
 
   return {
     messages,

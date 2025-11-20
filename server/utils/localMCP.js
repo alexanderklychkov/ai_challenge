@@ -13,7 +13,8 @@ import { registerTaskTools } from '../mcp/tools/tasks.js';
 import { registerProjectTools } from '../mcp/tools/projects.js';
 import { registerLabelTools } from '../mcp/tools/labels.js';
 import { registerSectionTools } from '../mcp/tools/sections.js';
-import { registerReminderTool } from '../mcp/tools/reminder.js';
+import { registerArticleTools } from '../mcp/tools/article.js';
+// import { registerReminderTool } from '../mcp/tools/reminder.js'; // Отключено для интерфейса
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -78,7 +79,8 @@ function getMCPServer() {
   registerProjectTools(mcpServerInstance, todoistApiInstance);
   registerLabelTools(mcpServerInstance, todoistApiInstance);
   registerSectionTools(mcpServerInstance, todoistApiInstance);
-  registerReminderTool(mcpServerInstance, todoistApiInstance);
+  registerArticleTools(mcpServerInstance);
+  // registerReminderTool(mcpServerInstance, todoistApiInstance); // Отключено для интерфейса
 
   return mcpServerInstance;
 }

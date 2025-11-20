@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Components } from 'react-markdown';
 
 interface CodeBlockProps {
@@ -12,7 +11,8 @@ interface CodeBlockProps {
 
 const CodeBlock = ({ code, language, isDark }: CodeBlockProps) => {
   const [copied, setCopied] = useState(false);
-  const codeStyle = isDark ? vscDarkPlus : oneLight;
+  // Всегда используем тёмную тему для блоков кода
+  const codeStyle = vscDarkPlus;
 
   const handleCopy = async () => {
     try {
@@ -28,27 +28,29 @@ const CodeBlock = ({ code, language, isDark }: CodeBlockProps) => {
     <div className="my-3 relative group">
       <button
         onClick={handleCopy}
-        className={`absolute top-2 cursor-pointer right-2 px-2.5 py-1.5 text-xs font-medium rounded-md transition-all z-10 shadow-md ${
+        className={`absolute top-2 cursor-pointer right-2 px-2.5 py-1.5 text-xs font-medium rounded-md transition-all z-10 shadow-lg backdrop-blur-sm border ${
           copied ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         } ${
-          isDark
-            ? copied
-              ? 'bg-green-500 text-white'
-              : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-            : copied
-              ? 'bg-green-500 text-white'
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+          copied
+            ? 'bg-[#00ff88] text-[#0a0a0f] border-[#00ff88]/50 shadow-[0_0_15px_rgba(0,255,136,0.5)]'
+            : 'bg-[#1e1e2e]/90 text-[#00f0ff] border-[#00f0ff]/50 hover:bg-[#2a2a3a]/90 hover:border-[#00f0ff] hover:shadow-[0_0_15px_rgba(0,240,255,0.3)]'
         }`}
         aria-label={copied ? 'Скопировано' : 'Копировать код'}
       >
         {copied ? '✓ Скопировано' : 'Копировать'}
       </button>
-      <div>
+      <div className="rounded-lg overflow-hidden border border-[#2a2a3a] shadow-[0_0_20px_rgba(0,240,255,0.1)]">
         <SyntaxHighlighter
           language={language}
           style={codeStyle}
           PreTag="div"
-          className="rounded-lg text-sm !m-0 !p-4"
+          customStyle={{
+            margin: 0,
+            padding: '1rem',
+            backgroundColor: '#1a1a2e',
+            borderRadius: '0.5rem',
+          }}
+          className="rounded-lg text-sm"
         >
           {code}
         </SyntaxHighlighter>
@@ -62,19 +64,19 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
   
   return {
     // Заголовки
-    h1: ({ children }) => <h1 className={`text-2xl font-bold mb-3 mt-4 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h1>,
-    h2: ({ children }) => <h2 className={`text-xl font-bold mb-2 mt-4 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h2>,
-    h3: ({ children }) => <h3 className={`text-lg font-bold mb-2 mt-3 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h3>,
-    h4: ({ children }) => <h4 className={`text-base font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h4>,
-    h5: ({ children }) => <h5 className={`text-sm font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h5>,
-    h6: ({ children }) => <h6 className={`text-xs font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>{children}</h6>,
+    h1: ({ children }) => <h1 className={`text-2xl font-bold mb-3 mt-4 first:mt-0 ${isDark ? 'text-white' : 'gradient-text'}`}>{children}</h1>,
+    h2: ({ children }) => <h2 className={`text-xl font-bold mb-2 mt-4 first:mt-0 ${isDark ? 'text-white' : 'gradient-text'}`}>{children}</h2>,
+    h3: ({ children }) => <h3 className={`text-lg font-bold mb-2 mt-3 first:mt-0 ${isDark ? 'text-white' : 'text-[#00f0ff]'}`}>{children}</h3>,
+    h4: ({ children }) => <h4 className={`text-base font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-[#00f0ff]'}`}>{children}</h4>,
+    h5: ({ children }) => <h5 className={`text-sm font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-[#b026ff]'}`}>{children}</h5>,
+    h6: ({ children }) => <h6 className={`text-xs font-bold mb-1 mt-2 first:mt-0 ${isDark ? 'text-white' : 'text-[#b026ff]'}`}>{children}</h6>,
     
     // Параграфы
-    p: ({ children }) => <p className={`mb-2 last:mb-0 leading-relaxed ${isDark ? 'text-white/95' : 'text-gray-800'}`}>{children}</p>,
+    p: ({ children }) => <p className={`mb-2 last:mb-0 leading-relaxed ${isDark ? 'text-white/95' : 'text-[#e0e0e8]'}`}>{children}</p>,
     
     // Списки
-    ul: ({ children }) => <ul className={`list-disc list-inside mb-3 space-y-1 ml-2 ${isDark ? 'text-white/95' : 'text-gray-800'}`}>{children}</ul>,
-    ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 ml-2 ${isDark ? 'text-white/95' : 'text-gray-800'}`}>{children}</ol>,
+    ul: ({ children }) => <ul className={`list-disc list-inside mb-3 space-y-1 ml-2 ${isDark ? 'text-white/95' : 'text-[#e0e0e8]'}`}>{children}</ul>,
+    ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 ml-2 ${isDark ? 'text-white/95' : 'text-[#e0e0e8]'}`}>{children}</ol>,
     li: ({ children }) => <li className="pl-1">{children}</li>,
     
     // Блоки кода
@@ -85,7 +87,7 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
       
       if (isInline) {
         return (
-          <code className={`${isDark ? 'bg-white/20' : 'bg-gray-800/10'} px-1.5 py-0.5 rounded text-sm font-mono ${isDark ? 'text-white' : 'text-gray-900'}`} {...props}>
+          <code className={`${isDark ? 'bg-white/20' : 'bg-[#00f0ff]/20'} px-1.5 py-0.5 rounded text-sm font-mono ${isDark ? 'text-white' : 'text-[#00f0ff]'} border border-[#00f0ff]/30`} {...props}>
             {children}
           </code>
         );
@@ -107,22 +109,22 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className={`${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-blue-600 hover:text-blue-700'} underline break-all`}
+        className={`${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-[#00f0ff] hover:text-[#b026ff]'} underline break-all transition-colors duration-200`}
       >
         {children}
       </a>
     ),
     
     // Выделение текста
-    strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+    strong: ({ children }) => <strong className="font-bold text-[#00f0ff]">{children}</strong>,
     em: ({ children }) => <em className="italic">{children}</em>,
     
     // Горизонтальная линия
-    hr: () => <hr className={`my-4 ${isDark ? 'border-white/30' : 'border-gray-300'}`} />,
+    hr: () => <hr className={`my-4 border-t border-[#2a2a3a] bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent`} />,
     
     // Блоки цитат
     blockquote: ({ children }) => (
-      <blockquote className={`border-l-4 ${isDark ? 'border-white/40 bg-white/10' : 'border-gray-400 bg-gray-200/50'} pl-4 py-2 my-3 italic rounded-r ${isDark ? 'text-white/90' : 'text-gray-700'}`}>
+      <blockquote className={`border-l-4 ${isDark ? 'border-white/40 bg-white/10' : 'border-[#00f0ff]/50 bg-[#00f0ff]/10'} pl-4 py-2 my-3 italic rounded-r ${isDark ? 'text-white/90' : 'text-[#e0e0e8]'} shadow-[0_0_10px_rgba(0,240,255,0.1)]`}>
         {children}
       </blockquote>
     ),
@@ -131,34 +133,34 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
     table: ({ children }) => (
       <div className="overflow-x-auto my-4 -mx-2">
         <div className="inline-block min-w-full align-middle px-2">
-          <table className={`min-w-full border-collapse ${isDark ? 'border-white/30' : 'border-gray-300'} text-sm`}>
+          <table className={`min-w-full border-collapse ${isDark ? 'border-white/30' : 'border-[#2a2a3a]'} text-sm rounded-lg overflow-hidden border border-[#2a2a3a]`}>
             {children}
           </table>
         </div>
       </div>
     ),
     thead: ({ children }) => (
-      <thead className={isDark ? 'bg-white/10' : 'bg-gray-100'}>
+      <thead className={isDark ? 'bg-white/10' : 'bg-[#1e1e2e]/80 backdrop-blur-sm'}>
         {children}
       </thead>
     ),
     tbody: ({ children }) => (
-      <tbody className={isDark ? 'divide-y divide-white/20' : 'divide-y divide-gray-200'}>
+      <tbody className={isDark ? 'divide-y divide-white/20' : 'divide-y divide-[#2a2a3a]'}>
         {children}
       </tbody>
     ),
     tr: ({ children }) => (
-      <tr className={isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50 transition-colors'}>
+      <tr className={`${isDark ? 'hover:bg-white/5' : 'hover:bg-[#2a2a3a]/50'} transition-colors duration-200`}>
         {children}
       </tr>
     ),
     th: ({ children }) => (
-      <th className={`${isDark ? 'border-white/30 text-white' : 'border-gray-300 text-gray-900'} border px-3 py-2 text-left font-semibold align-top`}>
+      <th className={`${isDark ? 'border-white/30 text-white' : 'border-[#2a2a3a] text-[#00f0ff]'} border px-3 py-2 text-left font-semibold align-top`}>
         {children}
       </th>
     ),
     td: ({ children }) => (
-      <td className={`${isDark ? 'border-white/30 text-white/90' : 'border-gray-300 text-gray-800'} border px-3 py-2 align-top`}>
+      <td className={`${isDark ? 'border-white/30 text-white/90' : 'border-[#2a2a3a] text-[#e0e0e8]'} border px-3 py-2 align-top`}>
         {children}
       </td>
     ),

@@ -103,6 +103,7 @@ export abstract class AIModel {
     inputTokens?: number;
     outputTokens?: number;
     cost?: number;
+    usedTools?: Array<{ name: string; args?: any; timestamp?: string; error?: string }>;
   }> {
     const response = await fetch(this.apiProxyUrl, {
       method: 'POST',
@@ -119,16 +120,25 @@ export abstract class AIModel {
 
     const data = await response.json();
 
-    if (!data.text) {
-      throw new Error(`Invalid response format from ${this.constructor.name}`);
+    // Проверяем наличие ошибки в ответе
+    if (data.error) {
+      throw new Error(data.error || `Error from ${this.constructor.name}`);
+    }
+
+    // Проверяем наличие текста в ответе
+    if (!data.text && data.text !== '') {
+      // Логируем структуру ответа для отладки
+      console.error(`[${this.constructor.name}] Unexpected response format:`, JSON.stringify(data, null, 2));
+      throw new Error(`Invalid response format from ${this.constructor.name}: missing 'text' field. Response keys: ${Object.keys(data).join(', ')}`);
     }
 
     return {
-      text: data.text,
+      text: data.text || '',
       tokens: data.tokens,
       inputTokens: data.inputTokens,
       outputTokens: data.outputTokens,
       cost: data.cost,
+      usedTools: data.usedTools,
     };
   }
 
@@ -147,7 +157,13 @@ export abstract class AIModel {
       const validMessages = this.validateMessages(messages);
       const requestBody = this.buildRequestBody(validMessages, this.getAdditionalRequestData());
       const data = await this.fetchFromProxy(requestBody);
-      return this.parseResponse(data.text, data);
+      return this.parseResponse(data.text, {
+        tokens: data.tokens,
+        inputTokens: data.inputTokens,
+        outputTokens: data.outputTokens,
+        cost: data.cost,
+        usedTools: data.usedTools,
+      });
     } catch (error) {
       console.error(`${this.constructor.name} API error:`, error);
       throw error;
@@ -195,7 +211,7 @@ export abstract class AIModel {
    */
   protected parseResponse(
     text: string,
-    metadata?: { tokens?: number; inputTokens?: number; outputTokens?: number; cost?: number }
+    metadata?: { tokens?: number; inputTokens?: number; outputTokens?: number; cost?: number; usedTools?: Array<{ name: string; args?: any; timestamp?: string; error?: string }> }
   ): AIResponse {
     const cleanedText = this.removeMarkdownCodeBlocks(text);
     const trimmedText = cleanedText.trim();
@@ -219,6 +235,7 @@ export abstract class AIModel {
           inputTokens: aiResponse.inputTokens ?? metadata?.inputTokens,
           outputTokens: aiResponse.outputTokens ?? metadata?.outputTokens,
           cost: aiResponse.cost ?? metadata?.cost,
+          usedTools: aiResponse.usedTools ?? metadata?.usedTools,
         };
       } catch (parseError) {
         // Если не удалось распарсить JSON, возвращаем как обычный текст
@@ -230,6 +247,7 @@ export abstract class AIModel {
           inputTokens: metadata?.inputTokens,
           outputTokens: metadata?.outputTokens,
           cost: metadata?.cost,
+          usedTools: metadata?.usedTools,
         };
       }
     } else {
@@ -241,6 +259,7 @@ export abstract class AIModel {
         inputTokens: metadata?.inputTokens,
         outputTokens: metadata?.outputTokens,
         cost: metadata?.cost,
+        usedTools: metadata?.usedTools,
       };
     }
   }
