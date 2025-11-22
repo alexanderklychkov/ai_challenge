@@ -1,154 +1,28 @@
-import { useState, useMemo, useEffect } from 'react';
-import ChatArea from './components/ChatArea.tsx';
-import ContextPanel from './components/ContextPanel.tsx';
+import { useState, useCallback, useRef } from 'react';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import ChatList from './components/ChatList.tsx';
-import ChatSettings from './components/ChatSettings.tsx';
-import { useChat } from './hooks/useChat';
-import { createYandexGPTModel } from './services/yandexGPT';
-import { createHuggingFaceModel } from './services/huggingFace';
-import { createDeepSeekModel } from './services/deepSeek';
-import { createChatGPTModel } from './services/chatGPT';
-import { loadChats, createChat, updateChatSettings } from './services/storage';
-import { Chat, ChatSettings as ChatSettingsType, AgentConfig } from './types/chat';
-import { generateId } from './utils/generateId';
-import { Code, Sparkles, Zap } from 'lucide-react';
+import { LearningList } from './components/LearningList.tsx';
+import { LearningPage } from './components/LearningPage.tsx';
+import { ChatPage } from './pages/ChatPage.tsx';
+import { Code, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 function App() {
-  const [enableCompression, setEnableCompression] = useState(false);
-  const [currentChatId, setCurrentChatId] = useState<string>('');
-  const [currentChat, setCurrentChat] = useState<Chat | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const location = useLocation();
   const [chatListRefreshTrigger, setChatListRefreshTrigger] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
+  const isChatRoute = location.pathname.startsWith('/chat');
+  const isLearningRoute = location.pathname.startsWith('/learning');
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Инициализация: загружаем чаты или создаем первый
-  useEffect(() => {
-    const initializeChat = async () => {
-      const chats = await loadChats();
-      if (chats.length > 0) {
-        setCurrentChatId(chats[0].id);
-        setCurrentChat(chats[0]);
-      } else {
-        const newChat = await createChat('Новый чат');
-        if (newChat) {
-          setCurrentChatId(newChat.id);
-          setCurrentChat(newChat);
-        }
-      }
-      setIsInitializing(false);
-    };
-    initializeChat();
+  const handleChatListRefresh = useCallback(() => {
+    // Debounce обновления списка чатов
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    refreshTimeoutRef.current = setTimeout(() => {
+      setChatListRefreshTrigger(prev => prev + 1);
+    }, 500);
   }, []);
-
-  // Загружаем текущий чат при изменении currentChatId
-  useEffect(() => {
-    const loadCurrentChat = async () => {
-      if (currentChatId) {
-        const chats = await loadChats();
-        const chat = chats.find(c => c.id === currentChatId);
-        if (chat) {
-          setCurrentChat(chat);
-        }
-      }
-    };
-    loadCurrentChat();
-  }, [currentChatId, chatListRefreshTrigger]);
-  
-  // Создаем модели из настроек чата или используем дефолтные
-  const models = useMemo(() => {
-    if (currentChat?.settings?.agents && currentChat.settings.agents.length > 0) {
-      return currentChat.settings.agents.map((agent: AgentConfig) => {
-        const config = {
-          model: agent.model,
-          temperature: agent.temperature,
-          maxTokens: agent.maxTokens,
-          ...(agent.type === 'deepseek' && { enableMCP: agent.enableMCP }),
-          ...(agent.type === 'huggingface' && { provider: agent.provider }),
-        };
-
-        let model;
-        switch (agent.type) {
-          case 'deepseek':
-            model = createDeepSeekModel(config);
-            break;
-          case 'huggingface':
-            model = createHuggingFaceModel(config);
-            break;
-          case 'yandex':
-            model = createYandexGPTModel(config);
-            break;
-          case 'chatgpt':
-            model = createChatGPTModel(config);
-            break;
-          default:
-            model = createDeepSeekModel(config);
-        }
-
-        return { model, name: agent.name };
-      });
-    }
-
-    // Дефолтные модели
-    return [
-      { model: createDeepSeekModel({ model: 'deepseek-chat', enableMCP: true }), name: 'DeepSeek (с MCP)' },
-    ];
-  }, [currentChat?.settings?.agents]);
-
-  // Режим работы из настроек чата или дефолтный
-  const chatMode = currentChat?.settings?.mode || 'chain-fast';
-  const chatEnableCompression = currentChat?.settings?.enableCompression || false;
-  const chatCompressionInterval = currentChat?.settings?.compressionInterval || 6;
-
-  // Модель-анализатор для команды /analyze
-  const analyzerModel = useMemo(() => ({
-    model: createHuggingFaceModel({ 
-      model: 'openai/gpt-oss-120b', 
-      provider: 'auto', 
-      temperature: 0.3 
-    }),
-    name: 'Анализатор (GPT-OSS-120b)'
-  }), []);
-  
-  // Режим работы: 'parallel' - параллельно, 'chain' - цепочкой
-  const { messages, isLoading, isLoadingMessages, sendMessage, clearMessages, tokenStatistics } = useChat({ 
-    chatId: currentChatId || 'temp', // Используем временный ID если еще не загрузили
-    models, 
-    mode: chatMode,
-    analyzerModel, // Модель для анализа ответов (команда /analyze)
-    enableCompression: chatEnableCompression || enableCompression, // Включить сжатие истории
-    compressionInterval: chatCompressionInterval, // Сжимать каждые N сообщений
-    compressionModel: models[0], // Модель для создания summary (используем первую модель)
-  });
-
-  const handleSaveSettings = async (settings: ChatSettingsType) => {
-    if (currentChatId) {
-      const success = await updateChatSettings(currentChatId, settings);
-      if (success) {
-        setChatListRefreshTrigger(prev => prev + 1);
-        setShowSettings(false);
-      }
-    }
-  };
-
-  // Обновляем список чатов при изменении количества сообщений (с задержкой для сохранения на сервере)
-  useEffect(() => {
-    if (messages.length > 0 && !isLoadingMessages && !isLoading) {
-      // Даем время на сохранение сообщений на сервере (debounce 500ms + запас для ответа AI)
-      const timeout = setTimeout(() => {
-        setChatListRefreshTrigger(prev => prev + 1);
-      }, 1500);
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [messages.length, isLoadingMessages, isLoading]);
-
-  if (isInitializing || !currentChatId) {
-    return (
-      <div className="flex h-screen bg-[#0a0a0f] text-[#e0e0e8] items-center justify-center">
-        <div className="text-[#a0a0b0]">Загрузка...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen bg-[#0a0a0f] text-[#e0e0e8] overflow-hidden relative">
@@ -164,44 +38,71 @@ function App() {
           {/* Градиентная линия сверху */}
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent"></div>
           
-          {/* Список чатов */}
-          <div className="flex-1 overflow-hidden">
-            <ChatList 
-              currentChatId={currentChatId}
-              onChatSelect={setCurrentChatId}
-              onChatCreated={(chatId) => setCurrentChatId(chatId)}
-              refreshTrigger={chatListRefreshTrigger}
-            />
+          {/* Переключатель вида */}
+          <div className="h-16 border-b border-[#2a2a3a] flex items-center px-4">
+            <div className="flex gap-2 w-full">
+              <Link
+                to="/chat"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                  isChatRoute
+                    ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                    : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Code className="w-4 h-4" />
+                  Чат
+                </div>
+              </Link>
+              <Link
+                to="/learning"
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                  isLearningRoute
+                    ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                    : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Обучение
+                </div>
+              </Link>
+            </div>
           </div>
+          
+          {/* Список чатов (только для режима чата) */}
+          {isChatRoute && (
+            <div className="flex-1 overflow-hidden">
+              <ChatList 
+                refreshTrigger={chatListRefreshTrigger}
+              />
+            </div>
+          )}
+          
+          {/* Список обучений (только для режима обучения) */}
+          {isLearningRoute && (
+            <div className="flex-1 overflow-hidden">
+              <LearningList />
+            </div>
+          )}
           
           {/* Градиентная линия снизу */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#b026ff] to-transparent"></div>
         </aside>
         
-        <ChatArea 
-          messages={messages} 
-          isLoading={isLoading}
-          isLoadingMessages={isLoadingMessages}
-          onSendMessage={sendMessage} 
-          onClearMessages={clearMessages}
-          onOpenSettings={() => setShowSettings(true)}
-        />
-        <ContextPanel 
-          messages={messages}
-          tokenStatistics={tokenStatistics}
-          modelName={models[0]?.name}
-        />
+        {/* Основной контент */}
+        <div className="flex-1 overflow-hidden">
+          <Routes>
+            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/chat" element={<ChatPage chatListRefreshTrigger={chatListRefreshTrigger} onChatListRefresh={handleChatListRefresh} />} />
+            <Route path="/chat/:chatId" element={<ChatPage chatListRefreshTrigger={chatListRefreshTrigger} onChatListRefresh={handleChatListRefresh} />} />
+            <Route path="/learning" element={<LearningPage />} />
+            <Route path="/learning/test/:testId" element={<LearningPage />} />
+            <Route path="/learning/flashcards/:setId" element={<LearningPage />} />
+            <Route path="/learning/plan/:planId" element={<LearningPage />} />
+          </Routes>
+        </div>
       </div>
-
-      {/* Модальное окно настроек */}
-      {currentChat && (
-        <ChatSettings
-          chat={currentChat}
-          onSave={handleSaveSettings}
-          onClose={() => setShowSettings(false)}
-          open={showSettings}
-        />
-      )}
     </div>
   );
 }

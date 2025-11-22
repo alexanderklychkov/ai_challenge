@@ -3,7 +3,7 @@
  * Поддерживает автоматическое планирование последовательности вызовов инструментов
  */
 
-import { callLocalMCPTool, getLocalMCPTools } from './localMCP.js';
+import { callTool as orchestratorCallTool, getAllTools } from './orchestrator.js';
 
 /**
  * Результат выполнения одного инструмента в цепочке
@@ -108,7 +108,7 @@ export async function executeToolChain(toolChain, context = {}) {
       
       console.log(`[MCP Agent] Выполнение инструмента: ${tool}`, preparedArgs);
       
-      const result = await callLocalMCPTool(tool, preparedArgs);
+      const result = await orchestratorCallTool(tool, preparedArgs);
       
       const executionResult = {
         toolName: tool,
@@ -193,8 +193,8 @@ function prepareArgs(args, context) {
  */
 export async function autoExecuteToolChain(userQuery) {
   try {
-    // Получаем доступные инструменты
-    const availableTools = await getLocalMCPTools();
+    // Получаем доступные инструменты через оркестратор
+    const availableTools = await getAllTools();
     
     // Планируем цепочку
     const plan = await planToolChain(userQuery, availableTools);

@@ -11,7 +11,7 @@ import { handleHuggingFace } from '../handlers/huggingFace.js';
 import { loadUserMessages, saveUserMessages, clearUserMessages } from '../utils/telegramStorage.js';
 import { getUserModel, setUserModel, getUserMCP } from '../utils/telegramUserSettings.js';
 import { subscribeUser, unsubscribeUser, isUserSubscribed, getSubscribedUsers } from '../utils/telegramReminders.js';
-import { callLocalMCPTool } from '../utils/localMCP.js';
+import { callTool as orchestratorCallTool } from '../mcp/orchestrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -660,12 +660,12 @@ export async function startTelegramBot() {
       // Получаем сводку задач через MCP инструмент reminder
       let tasksSummary;
       try {
-        const reminderResult = await callLocalMCPTool('reminder', {
+        const reminderResult = await orchestratorCallTool('reminder', {
           filter: '',
           limit: 20,
         });
         
-        // callLocalMCPTool уже извлекает текст из content массива,
+        // orchestratorCallTool уже извлекает текст из content массива,
         // поэтому результат должен быть строкой
         if (typeof reminderResult === 'string') {
           tasksSummary = reminderResult;

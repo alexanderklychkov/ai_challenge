@@ -3,7 +3,9 @@ import { Message } from '../types/message';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getMarkdownComponents } from '../utils/markdownComponents';
-import { Zap, Package, Send, Code, Sparkles, Settings, Wrench } from 'lucide-react';
+import { Zap, Package, Send, Code, Sparkles, Settings, Wrench, FileText, CreditCard, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { parseLearningContent } from '../utils/parseLearningContent';
 
 interface ChatAreaProps {
   messages: Message[]
@@ -35,7 +37,9 @@ const ChatArea = ({
   onClearMessages,
   onOpenSettings,
 }: ChatAreaProps) => {
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -73,6 +77,18 @@ const ChatArea = ({
     setInputValue(e.target.value);
   }, []);
 
+  const toggleToolsExpanded = useCallback((messageId: string) => {
+    setExpandedTools(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  }, []);
+
   return (
     <main className="flex-1 flex flex-col bg-[#0a0a0f]/50 backdrop-blur-sm overflow-hidden relative">
       {/* Заголовок */}
@@ -104,7 +120,7 @@ const ChatArea = ({
             {onOpenSettings && (
               <button
                 onClick={onOpenSettings}
-                className="flex-shrink-0 p-2 text-[#a0a0b0] hover:text-[#00f0ff] hover:bg-[#1e1e2e] rounded-lg transition-all duration-300"
+                className="flex-shrink-0 p-2 text-[#a0a0b0] hover:text-[#00f0ff] hover:bg-[#1e1e2e] rounded-lg transition-all duration-300 cursor-pointer"
                 title="Настройки чата"
               >
                 <Settings className="w-5 h-5" />
@@ -141,20 +157,72 @@ const ChatArea = ({
           </div>
         ) : (
           <>
-            {messages.map((message, index) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.type === 'user' ? 'justify-end' : 'justify-start'
-                } animate-[slide-in_0.3s_ease-out]`}
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
+            {messages.map((message, index) => {
+              // Специальный рендеринг для статусных сообщений
+              if (message.type === 'status' && message.statusMessage) {
+                const status = message.statusMessage;
+                const statusColors = {
+                  'pending': 'text-[#a0a0b0]',
+                  'in_progress': 'text-[#00f0ff]',
+                  'completed': 'text-[#00ff88]',
+                  'error': 'text-[#ff4444]',
+                };
+                
+                const statusIcons = {
+                  'pending': '⏳',
+                  'in_progress': '⚙️',
+                  'completed': '✓',
+                  'error': '✗',
+                };
+                
+                return (
+                  <div
+                    key={message.id}
+                    className="flex justify-start animate-[slide-in_0.3s_ease-out]"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className={`max-w-[85%] md:max-w-[70%] rounded-xl p-3 backdrop-blur-sm bg-[#1e1e2e]/60 text-[#e0e0e8] border border-[#2a2a3a] shadow-[0_0_10px_rgba(0,240,255,0.2)] transition-all duration-300 ${
+                      status.status === 'in_progress' ? 'animate-pulse' : ''
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg ${statusColors[status.status]} ${
+                          status.status === 'in_progress' ? 'animate-spin' : ''
+                        }`}>
+                          {statusIcons[status.status]}
+                        </span>
+                        <span className={`text-sm font-medium ${statusColors[status.status]}`}>
+                          {status.message}
+                        </span>
+                        {status.serverName && (
+                          <span className="ml-auto text-xs text-[#a0a0b0] px-2 py-0.5 rounded bg-[#2a2a3a]">
+                            {status.serverName}
+                          </span>
+                        )}
+                      </div>
+                      {status.error && (
+                        <div className="mt-2 text-xs text-[#ff4444]">
+                          {status.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              
+              return (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.type === 'user' ? 'justify-end' : 'justify-start'
+                  } animate-[slide-in_0.3s_ease-out]`}
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
                 <div
                   className={`max-w-[85%] md:max-w-[70%] rounded-xl p-4 backdrop-blur-sm ${
                     message.type === 'user'
                       ? 'bg-gradient-to-br from-[#b026ff] to-[#8000cc] text-white shadow-[0_0_20px_rgba(176,38,255,0.4)] border border-[#b026ff]/40'
                       : 'bg-[#1e1e2e]/80 text-[#e0e0e8] border border-[#2a2a3a] shadow-[0_0_15px_rgba(176,38,255,0.1)]'
-                  } ${message.compressedBy ? 'opacity-60 border-2 border-[#b026ff]/50' : ''} transition-all duration-300 hover:scale-[1.02]`}
+                  } ${message.compressedBy ? 'opacity-60 border-2 border-[#b026ff]/50' : ''} transition-all duration-300`}
                 >
                   {/* Индикатор сжатого сообщения */}
                   {message.compressedBy && (
@@ -208,43 +276,126 @@ const ChatArea = ({
                     </Markdown>
                   </div>
 
+                  {/* Ссылки на элементы обучения */}
+                  {message.type === 'assistant' && (() => {
+                    // Парсим контент сообщения для поиска ID элементов обучения
+                    const contentLearning = parseLearningContent(message.content);
+                    
+                    // Также проверяем использованные инструменты
+                    let learningContent = contentLearning;
+                    
+                    // Если не нашли в контенте, пытаемся найти в использованных инструментах
+                    if (!learningContent && message.aiResponse?.usedTools) {
+                      const hasTestTool = message.aiResponse.usedTools.some(t => t.name === 'createTest');
+                      const hasFlashcardTool = message.aiResponse.usedTools.some(t => t.name === 'createFlashcards');
+                      const hasPlanTool = message.aiResponse.usedTools.some(t => t.name === 'createStudyPlan');
+                      
+                      if (hasTestTool || hasFlashcardTool || hasPlanTool) {
+                        // Парсим контент еще раз
+                        learningContent = parseLearningContent(message.content);
+                      }
+                    }
+                    
+                    if (!learningContent) return null;
+
+                    return (
+                      <div className="mt-4 pt-4 border-t border-[#2a2a3a]">
+                        <div className="flex flex-wrap gap-2">
+                          {learningContent.testId && (
+                            <button
+                              onClick={() => navigate(`/learning/test/${learningContent.testId}`)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#00f0ff]/10 border border-[#00f0ff]/50 rounded-lg text-sm text-[#00f0ff] hover:bg-[#00f0ff]/20 hover:border-[#00f0ff] transition-all cursor-pointer"
+                            >
+                              <FileText className="w-4 h-4" />
+                              Открыть тест
+                            </button>
+                          )}
+                          {learningContent.flashcardSetId && (
+                            <button
+                              onClick={() => navigate(`/learning/flashcards/${learningContent.flashcardSetId}`)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#b026ff]/10 border border-[#b026ff]/50 rounded-lg text-sm text-[#b026ff] hover:bg-[#b026ff]/20 hover:border-[#b026ff] transition-all cursor-pointer"
+                            >
+                              <CreditCard className="w-4 h-4" />
+                              Открыть карточки
+                            </button>
+                          )}
+                          {learningContent.studyPlanId && (
+                            <button
+                              onClick={() => navigate(`/learning/plan/${learningContent.studyPlanId}`)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#00ff88]/10 border border-[#00ff88]/50 rounded-lg text-sm text-[#00ff88] hover:bg-[#00ff88]/20 hover:border-[#00ff88] transition-all cursor-pointer"
+                            >
+                              <Calendar className="w-4 h-4" />
+                              Открыть план изучения
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#a0a0b0] mt-2">
+                          Перейдите в раздел "Обучение" для просмотра и прохождения
+                        </p>
+                      </div>
+                    );
+                  })()}
+
                   {/* Used Tools для assistant сообщений */}
                   {message.type === 'assistant' && message.aiResponse?.usedTools && message.aiResponse.usedTools.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-[#2a2a3a]">
-                      <h4 className="text-sm font-semibold text-[#00f0ff] mb-2 flex items-center gap-2">
+                      <button
+                        onClick={() => toggleToolsExpanded(message.id)}
+                        className="w-full text-left text-sm font-semibold text-[#00f0ff] mb-2 flex items-center gap-2 hover:text-[#b026ff] transition-colors cursor-pointer"
+                      >
+                        {expandedTools.has(message.id) ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
                         <Wrench className="w-4 h-4" />
-                        Использованные инструменты MCP:
-                      </h4>
-                      <div className="space-y-2">
-                        {message.aiResponse.usedTools.map((tool, index) => (
-                          <div
-                            key={index}
-                            className={`text-xs p-2 rounded border ${
-                              tool.error
-                                ? 'bg-[#ff4444]/10 border-[#ff4444]/50 text-[#ff4444]'
-                                : 'bg-[#00f0ff]/10 border-[#00f0ff]/50 text-[#00f0ff]'
-                            }`}
-                          >
-                            <div className="font-medium flex items-center gap-2">
-                              <Wrench className="w-3 h-3" />
-                              {tool.name}
+                        <span>Использованные инструменты MCP:</span>
+                        <span className="text-xs text-[#a0a0b0] ml-auto">
+                          ({message.aiResponse.usedTools.length})
+                        </span>
+                      </button>
+                      {expandedTools.has(message.id) && (
+                        <div className="space-y-2 animate-[slide-in_0.2s_ease-out]">
+                          {message.aiResponse.usedTools.map((tool, index) => (
+                            <div
+                              key={index}
+                              className={`text-xs p-2 rounded border ${
+                                tool.error
+                                  ? 'bg-[#ff4444]/10 border-[#ff4444]/50 text-[#ff4444]'
+                                  : 'bg-[#00f0ff]/10 border-[#00f0ff]/50 text-[#00f0ff]'
+                              }`}
+                            >
+                              <div className="font-medium flex items-center gap-2 flex-wrap">
+                                <Wrench className="w-3 h-3" />
+                                <span>{tool.name}</span>
+                                {tool.serverName && (
+                                  <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-[#8000cc]/30 text-[#b026ff] border border-[#8000cc]/50">
+                                    {tool.serverName}
+                                  </span>
+                                )}
+                                {tool.error && (
+                                  <span className="text-[#ff4444] ml-auto">Ошибка</span>
+                                )}
+                              </div>
+                              {tool.serverCategory && (
+                                <div className="mt-1 text-[10px] text-[#a0a0b0]">
+                                  Категория: <span className="text-[#00f0ff]">{tool.serverCategory}</span>
+                                </div>
+                              )}
+                              {tool.args && Object.keys(tool.args).length > 0 && (
+                                <div className="mt-1 text-[#a0a0b0] font-mono text-[10px]">
+                                  {JSON.stringify(tool.args, null, 2)}
+                                </div>
+                              )}
                               {tool.error && (
-                                <span className="text-[#ff4444] ml-auto">Ошибка</span>
+                                <div className="mt-1 text-[#ff4444] text-[10px]">
+                                  {tool.error}
+                                </div>
                               )}
                             </div>
-                            {tool.args && Object.keys(tool.args).length > 0 && (
-                              <div className="mt-1 text-[#a0a0b0] font-mono text-[10px]">
-                                {JSON.stringify(tool.args, null, 2)}
-                              </div>
-                            )}
-                            {tool.error && (
-                              <div className="mt-1 text-[#ff4444] text-[10px]">
-                                {tool.error}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -259,7 +410,7 @@ const ChatArea = ({
                               href={ref.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-[#00f0ff] hover:text-[#b026ff] underline break-all transition-colors duration-200"
+                              className="text-sm text-[#00f0ff] hover:text-[#b026ff] underline break-all transition-colors duration-200 cursor-pointer"
                             >
                               {ref.title}
                             </a>
@@ -317,7 +468,8 @@ const ChatArea = ({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {isLoading && (
               <div className="flex justify-start animate-[slide-in_0.3s_ease-out]">
                 <div className="bg-[#1e1e2e]/80 backdrop-blur-sm text-[#e0e0e8] rounded-xl p-4 border border-[#2a2a3a] shadow-[0_0_15px_rgba(176,38,255,0.1)] max-w-[85%] md:max-w-[70%]">

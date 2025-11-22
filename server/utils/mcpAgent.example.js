@@ -5,7 +5,7 @@
  * выполнения цепочки инструментов MCP
  */
 
-import { autoExecuteToolChain, createToolChain, executeToolChain, createArticleTaskChain } from './mcpAgent.js';
+import { autoExecuteToolChain, createToolChain, executeToolChain, createArticleTaskChain } from '../mcp/agent.js';
 
 /**
  * Пример 1: Автоматическое выполнение цепочки на основе запроса пользователя

@@ -14,17 +14,24 @@ export interface ModelResponse {
  * Выполняет параллельные запросы к нескольким моделям
  * @param models Массив моделей с их именами
  * @param messages Сообщения для отправки
+ * @param chatId ID чата (опционально)
+ * @param requestId ID запроса для отслеживания статусов (опционально)
  * @returns Массив результатов от каждой модели
  */
 export async function sendToMultipleModels(
   models: Array<{ model: AIModel; name: string }>,
-  messages: AIMessage[]
+  messages: AIMessage[],
+  chatId?: string,
+  requestId?: string
 ): Promise<ModelResponse[]> {
   // Выполняем все запросы параллельно, каждая модель измеряет свое время
   const promises = models.map(async ({ model, name }) => {
     const startTime = performance.now();
     try {
-      const response = await model.sendMessage(messages);
+      const additionalData: Record<string, any> = {};
+      if (chatId) additionalData.chatId = chatId;
+      if (requestId) additionalData.requestId = requestId;
+      const response = await model.sendMessage(messages, Object.keys(additionalData).length > 0 ? additionalData : undefined);
       const endTime = performance.now();
       const responseTime = endTime - startTime;
       

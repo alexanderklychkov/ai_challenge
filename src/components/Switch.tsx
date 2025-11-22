@@ -34,3 +34,5 @@ const Switch = ({ checked, onChange, label, className = '' }: SwitchProps) => {
 
 export default Switch;
 
+
+

@@ -30,7 +30,7 @@ const Sidebar = ({ activeTab, setActiveTab }: SidebarProps) => {
             key={item.id}
             onClick={() => setActiveTab(item.id)}
             className={`
-              group relative w-full flex flex-col items-center justify-center py-4 transition-all duration-300
+              group relative w-full flex flex-col items-center justify-center py-4 transition-all duration-300 cursor-pointer
               ${activeTab === item.id 
                 ? 'text-[#00f0ff]' 
                 : 'text-[#a0a0b0] hover:text-[#e0e0e8]'

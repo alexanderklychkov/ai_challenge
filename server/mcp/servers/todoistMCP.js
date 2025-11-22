@@ -1,5 +1,6 @@
 /**
- * Утилиты для работы с локальным MCP сервером
+ * MCP сервер для работы с Todoist API
+ * Предоставляет инструменты для работы с задачами, проектами, метками и секциями
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -9,29 +10,29 @@ import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-import { registerTaskTools } from '../mcp/tools/tasks.js';
-import { registerProjectTools } from '../mcp/tools/projects.js';
-import { registerLabelTools } from '../mcp/tools/labels.js';
-import { registerSectionTools } from '../mcp/tools/sections.js';
-import { registerArticleTools } from '../mcp/tools/article.js';
-// import { registerReminderTool } from '../mcp/tools/reminder.js'; // Отключено для интерфейса
+import { registerTaskTools } from '../tools/tasks.js';
+import { registerProjectTools } from '../tools/projects.js';
+import { registerLabelTools } from '../tools/labels.js';
+import { registerSectionTools } from '../tools/sections.js';
+import { registerMCPServer } from '../orchestrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Загружаем .env
-dotenv.config({ path: resolve(__dirname, '..', '..', '.env') });
+dotenv.config({ path: resolve(__dirname, '..', '..', '..', '.env') });
 
 // Хранилище для инструментов и их обработчиков
 const toolsRegistry = new Map();
 
 let mcpServerInstance = null;
 let todoistApiInstance = null;
+let serverRegistered = false;
 
 /**
- * Инициализирует локальный MCP сервер и возвращает его экземпляр
+ * Инициализирует Todoist MCP сервер и возвращает его экземпляр
  */
-function getMCPServer() {
+function getTodoistMCPServer() {
   if (mcpServerInstance) {
     return mcpServerInstance;
   }
@@ -74,24 +75,44 @@ function getMCPServer() {
     return originalRegisterTool(name, options, handler);
   };
 
-  // Регистрируем все инструменты
+  // Регистрируем только Todoist инструменты
   registerTaskTools(mcpServerInstance, todoistApiInstance);
   registerProjectTools(mcpServerInstance, todoistApiInstance);
   registerLabelTools(mcpServerInstance, todoistApiInstance);
   registerSectionTools(mcpServerInstance, todoistApiInstance);
-  registerArticleTools(mcpServerInstance);
-  // registerReminderTool(mcpServerInstance, todoistApiInstance); // Отключено для интерфейса
+
+  // Регистрируем сервер в оркестраторе только один раз
+  if (!serverRegistered) {
+    registerMCPServer({
+      id: 'todoist-mcp-server',
+      name: 'Todoist MCP Server',
+      description: 'MCP сервер для работы с Todoist API (задачи, проекты, метки, секции)',
+      category: 'todoist',
+      priority: 10,
+      getTools: async () => {
+        return await getTodoistMCPTools();
+      },
+      callTool: async (toolName, args) => {
+        return await callTodoistMCPTool(toolName, args);
+      },
+      metadata: {
+        version: '1.0.0',
+        supports: ['tasks', 'projects', 'labels', 'sections'],
+      },
+    });
+    serverRegistered = true;
+  }
 
   return mcpServerInstance;
 }
 
 /**
- * Получает список доступных инструментов из локального MCP сервера
+ * Получает список доступных инструментов из Todoist MCP сервера
  * @returns {Promise<Array>} Массив инструментов
  */
-export async function getLocalMCPTools() {
+export async function getTodoistMCPTools() {
   // Инициализируем сервер, чтобы заполнить реестр
-  getMCPServer();
+  getTodoistMCPServer();
   
   // Используем реестр инструментов
   if (toolsRegistry.size > 0) {
@@ -103,28 +124,36 @@ export async function getLocalMCPTools() {
   }
   
   // Если реестр пуст, пытаемся получить инструменты через метод listTools
-  const server = getMCPServer();
+  const server = getTodoistMCPServer();
   if (typeof server.listTools === 'function') {
     try {
       const toolsList = await server.listTools();
       return toolsList.tools || [];
     } catch (error) {
-      console.warn('[LocalMCP] Не удалось получить инструменты через listTools:', error.message);
+      console.warn('[TodoistMCP] Не удалось получить инструменты через listTools:', error.message);
     }
   }
   
-  throw new Error('Не удалось получить список инструментов из MCP сервера');
+  throw new Error('Не удалось получить список инструментов из Todoist MCP сервера');
 }
 
 /**
- * Вызывает инструмент локального MCP сервера
+ * Инициализирует Todoist MCP сервер и регистрирует его в оркестраторе
+ * Вызывается автоматически при первом использовании
+ */
+export function initializeTodoistMCP() {
+  getTodoistMCPServer();
+}
+
+/**
+ * Вызывает инструмент Todoist MCP сервера
  * @param {string} toolName - Имя инструмента
  * @param {Object} args - Аргументы для инструмента
  * @returns {Promise<any>} Результат выполнения инструмента
  */
-export async function callLocalMCPTool(toolName, args) {
+export async function callTodoistMCPTool(toolName, args) {
   // Инициализируем сервер, чтобы заполнить реестр
-  getMCPServer();
+  getTodoistMCPServer();
   
   try {
     // Используем реестр инструментов (предпочтительный способ)
@@ -149,7 +178,7 @@ export async function callLocalMCPTool(toolName, args) {
     }
     
     // Если инструмент не найден в реестре, пытаемся вызвать через метод callTool
-    const server = getMCPServer();
+    const server = getTodoistMCPServer();
     if (typeof server.callTool === 'function') {
       try {
         const result = await server.callTool({
@@ -171,25 +200,23 @@ export async function callLocalMCPTool(toolName, args) {
         
         return result;
       } catch (error) {
-        console.warn(`[LocalMCP] Не удалось вызвать инструмент через callTool:`, error.message);
+        console.warn(`[TodoistMCP] Не удалось вызвать инструмент через callTool:`, error.message);
       }
     }
     
-    throw new Error(`Инструмент ${toolName} не найден`);
+    throw new Error(`Инструмент ${toolName} не найден в Todoist MCP сервере`);
   } catch (error) {
-    console.error(`[LocalMCP] Ошибка при вызове инструмента ${toolName}:`, error);
+    console.error(`[TodoistMCP] Ошибка при вызове инструмента ${toolName}:`, error);
     throw error;
   }
 }
 
 /**
- * Преобразует MCP tool в формат OpenAI function calling
- * MCP tool формат: { name, description, inputSchema }
- * OpenAI формат: { type: 'function', function: { name, description, parameters } }
+ * Преобразует Todoist MCP tools в формат OpenAI function calling
  * @param {Object} mcpTool - MCP tool объект
  * @returns {Object} OpenAI function формат
  */
-function convertLocalMCPToolToOpenAI(mcpTool) {
+function convertTodoistMCPToolToOpenAI(mcpTool) {
   const { name, description, inputSchema } = mcpTool;
   
   // inputSchema уже является JSON схемой, используем её напрямую как parameters
@@ -206,11 +233,11 @@ function convertLocalMCPToolToOpenAI(mcpTool) {
 }
 
 /**
- * Преобразует массив локальных MCP tools в формат OpenAI function calling
+ * Преобразует массив Todoist MCP tools в формат OpenAI function calling
  * @returns {Promise<Array>} Массив OpenAI functions
  */
-export async function convertLocalMCPToolsToOpenAI() {
-  const tools = await getLocalMCPTools();
-  return tools.map(tool => convertLocalMCPToolToOpenAI(tool));
+export async function convertTodoistMCPToolsToOpenAI() {
+  const tools = await getTodoistMCPTools();
+  return tools.map(tool => convertTodoistMCPToolToOpenAI(tool));
 }
 

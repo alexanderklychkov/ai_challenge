@@ -1,12 +1,34 @@
-import { convertLocalMCPToolsToOpenAI, callLocalMCPTool } from '../utils/localMCP.js';
+import { getAllToolsAsOpenAI, callTool as orchestratorCallTool, getAllTools, getRegisteredServers } from '../mcp/orchestrator.js';
+import { initializeTodoistMCP } from '../mcp/servers/todoistMCP.js';
+import { initializeArticleMCP } from '../mcp/servers/articleMCP.js';
+import { initializeLearningMCP } from '../mcp/servers/learningMCP.js';
 import { formatOpenAIMessages } from '../utils/messageFormatter.js';
+import { sendStatus } from '../utils/statusEmitter.js';
+
+/**
+ * Получает человекочитаемое название инструмента
+ */
+function getToolDisplayName(toolName) {
+  const displayNames = {
+    'readArticle': 'Изучаю статью',
+    'createTask': 'Создаю задачу в Todoist',
+    'createTest': 'Создаю тест',
+    'createFlashcards': 'Создаю флеш-карточки',
+    'createStudyPlan': 'Создаю учебный план',
+    'searchTasks': 'Ищу задачи',
+    'createProject': 'Создаю проект',
+    'getProjects': 'Получаю список проектов',
+  };
+  
+  return displayNames[toolName] || `Выполняю ${toolName}`;
+}
 
 /**
  * Обработчик для DeepSeek с поддержкой MCP
  */
 export async function handleDeepSeek(req, res) {
   try {
-    const { messages, system_prompt, model, temperature, max_tokens, enableMCP } = req.body;
+    const { messages, system_prompt, model, temperature, max_tokens, enableMCP, chatId, requestId } = req.body;
     const apiKey = process.env.DEEPSEEK_API_KEY;
     
     // Валидация API ключа
@@ -28,13 +50,19 @@ export async function handleDeepSeek(req, res) {
 
     // Добавляем MCP tools если включено
     if (enableMCP) {
-      const openAITools = await convertLocalMCPToolsToOpenAI();
+      // Инициализируем MCP серверы (регистрируют их в оркестраторе)
+      initializeTodoistMCP();
+      initializeArticleMCP();
+      initializeLearningMCP();
+      
+      // Используем оркестратор для получения всех инструментов из всех серверов
+      const openAITools = await getAllToolsAsOpenAI();
       requestBody.tools = openAITools;
       requestBody.tool_choice = 'auto';
     }
 
     // Выполняем запрос с поддержкой tool_calls
-    let responseData = await processChatCompletion(apiKey, requestBody, enableMCP);
+    let responseData = await processChatCompletion(apiKey, requestBody, enableMCP, chatId, 10, requestId);
 
     // Убеждаемся, что responseData содержит поле text
     if (!responseData || typeof responseData.text === 'undefined') {
@@ -57,7 +85,7 @@ export async function handleDeepSeek(req, res) {
 /**
  * Обрабатывает chat completion с поддержкой tool_calls
  */
-async function processChatCompletion(apiKey, requestBody, enableMCP, maxIterations = 10) {
+async function processChatCompletion(apiKey, requestBody, enableMCP, chatId, maxIterations = 10, requestId = null) {
   let iteration = 0;
   let allMessages = [...requestBody.messages];
   let finalText = '';
@@ -115,7 +143,39 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
       for (const toolCall of message.tool_calls) {
         try {
           const toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+          
+          // Добавляем chatId для инструментов обучения, если он передан
+          const learningTools = ['createTest', 'createFlashcards', 'createStudyPlan'];
+          if (learningTools.includes(toolCall.function.name) && chatId) {
+            toolArgs.chatId = chatId;
+          }
+          
           console.log(`[DeepSeek] Вызов локального MCP tool: ${toolCall.function.name} с аргументами:`, JSON.stringify(toolArgs, null, 2));
+          
+          // Отправляем статус о начале выполнения инструмента
+          let serverName = null;
+          if (requestId) {
+            try {
+              const allTools = await getAllTools();
+              const tool = allTools.find(t => t.name === toolCall.function.name);
+              if (tool) {
+                const servers = getRegisteredServers();
+                const server = servers.find(s => s.id === tool.serverId);
+                if (server) {
+                  serverName = server.name;
+                }
+              }
+            } catch (e) {
+              // Игнорируем ошибки при получении информации о сервере
+            }
+            
+            sendStatus(requestId, {
+              toolName: toolCall.function.name,
+              status: 'in_progress',
+              message: `${getToolDisplayName(toolCall.function.name)}...`,
+              serverName: serverName,
+            });
+          }
           
           // Отслеживаем использование инструмента
           usedTools.push({
@@ -124,9 +184,82 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
             timestamp: new Date().toISOString(),
           });
           
-          const toolResult = await callLocalMCPTool(toolCall.function.name, toolArgs);
+          // Используем оркестратор для вызова инструмента с метаданными о сервере
+          const toolCallResult = await orchestratorCallTool(toolCall.function.name, toolArgs, null, true);
           
-          console.log(`[DeepSeek] Результат локального MCP tool ${toolCall.function.name}:`, JSON.stringify(toolResult, null, 2));
+          // Проверяем, есть ли ошибка в результате
+          if (toolCallResult.error) {
+            throw new Error(toolCallResult.error);
+          }
+          
+          const toolResult = toolCallResult.result;
+          const serverInfo = {
+            serverId: toolCallResult.serverId,
+            serverName: toolCallResult.serverName,
+            serverCategory: toolCallResult.serverCategory,
+          };
+          
+          console.log(`[DeepSeek] Результат локального MCP tool ${toolCall.function.name} (сервер: ${serverInfo.serverName}):`, JSON.stringify(toolResult, null, 2));
+          
+          // Проверяем, является ли результат запросом на заполнение данных (первый вызов инструмента)
+          // Если инструмент возвращает структуру для заполнения, не отправляем статус completed
+          let isStructureRequest = false;
+          if (typeof toolResult === 'string') {
+            try {
+              const parsed = JSON.parse(toolResult);
+              // Проверяем наличие сообщения о том, что данные не предоставлены
+              if (parsed.message && (
+                parsed.message.includes('не предоставлены') || 
+                parsed.message.includes('не предоставлен') ||
+                parsed.message.includes('Используйте AI для создания')
+              )) {
+                isStructureRequest = true;
+              }
+            } catch (e) {
+              // Не JSON, проверяем строку напрямую
+              if (toolResult.includes('не предоставлены') || toolResult.includes('не предоставлен')) {
+                isStructureRequest = true;
+              }
+            }
+          } else if (toolResult && typeof toolResult === 'object') {
+            // Проверяем объект напрямую
+            if (toolResult.message && (
+              toolResult.message.includes('не предоставлены') || 
+              toolResult.message.includes('не предоставлен') ||
+              toolResult.message.includes('Используйте AI для создания')
+            )) {
+              isStructureRequest = true;
+            }
+          }
+          
+          // Отправляем статус о завершении инструмента только если это реальное выполнение, а не запрос структуры
+          if (requestId && !isStructureRequest) {
+            sendStatus(requestId, {
+              toolName: toolCall.function.name,
+              status: 'completed',
+              message: `${getToolDisplayName(toolCall.function.name)} завершено`,
+              serverName: serverInfo.serverName,
+            });
+          } else if (requestId && isStructureRequest) {
+            // Для запроса структуры обновляем статус, показывая что идет подготовка данных
+            sendStatus(requestId, {
+              toolName: toolCall.function.name,
+              status: 'in_progress',
+              message: `Подготавливаю данные для ${getToolDisplayName(toolCall.function.name)}...`,
+              serverName: serverInfo.serverName,
+            });
+          }
+          
+          // Обновляем информацию об использованном инструменте с данными о сервере
+          const toolIndex = usedTools.length - 1;
+          if (toolIndex >= 0 && usedTools[toolIndex].name === toolCall.function.name) {
+            usedTools[toolIndex] = {
+              ...usedTools[toolIndex],
+              serverId: serverInfo.serverId,
+              serverName: serverInfo.serverName,
+              serverCategory: serverInfo.serverCategory,
+            };
+          }
           
           // Форматируем результат
           let content;
@@ -158,12 +291,45 @@ async function processChatCompletion(apiKey, requestBody, enableMCP, maxIteratio
           const errorMessage = error.message || 'Неизвестная ошибка';
           console.error(`[DeepSeek] Ошибка при вызове локального MCP tool ${toolCall.function.name}:`, errorMessage);
           
+          // Пытаемся получить информацию о сервере
+          let serverInfo = {};
+          try {
+            // Пытаемся найти сервер через оркестратор
+            const allTools = await getAllTools();
+            const tool = allTools.find(t => t.name === toolCall.function.name);
+            if (tool) {
+              const servers = getRegisteredServers();
+              const server = servers.find(s => s.id === tool.serverId);
+              if (server) {
+                serverInfo = {
+                  serverId: server.id,
+                  serverName: server.name,
+                  serverCategory: server.category,
+                };
+              }
+            }
+          } catch (e) {
+            // Игнорируем ошибки при получении информации о сервере
+          }
+          
+          // Отправляем статус об ошибке
+          if (requestId) {
+            sendStatus(requestId, {
+              toolName: toolCall.function.name,
+              status: 'error',
+              message: `Ошибка при выполнении ${getToolDisplayName(toolCall.function.name)}`,
+              serverName: serverInfo.serverName,
+              error: errorMessage,
+            });
+          }
+          
           // Отслеживаем использование инструмента даже при ошибке
           usedTools.push({
             name: toolCall.function.name,
             args: JSON.parse(toolCall.function.arguments || '{}'),
             timestamp: new Date().toISOString(),
             error: errorMessage,
+            ...serverInfo,
           });
           
           toolResults.push({

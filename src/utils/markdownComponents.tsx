@@ -109,7 +109,7 @@ export const getMarkdownComponents = (isUserMessage: boolean): Components => {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className={`${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-[#00f0ff] hover:text-[#b026ff]'} underline break-all transition-colors duration-200`}
+        className={`${isDark ? 'text-blue-300 hover:text-blue-200' : 'text-[#00f0ff] hover:text-[#b026ff]'} underline break-all transition-colors duration-200 cursor-pointer`}
       >
         {children}
       </a>

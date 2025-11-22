@@ -1,11 +1,13 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Message } from '../types/message';
+import { Message, StatusMessage } from '../types/message';
 import { generateId } from '../utils/generateId';
 import { AIModel, AIMessage } from '../services/aiModel';
 import { sendToMultipleModels } from '../utils/multiModel';
 import { parseCommand, executeAnalyzeCommand, executeHelpCommand } from '../utils/commands';
 import { createSummary, shouldCreateSummary, getMessagesToCompress } from '../utils/summarizer';
 import { loadMessages, saveMessages, clearMessages as clearMessagesStorage } from '../services/storage';
+
+const API_BASE_URL = import.meta.env.VITE_API_PROXY_URL?.replace(/\/api\/.*$/, '') || 'http://localhost:3001';
 
 const initialMessages: Message[] = [
   // {
@@ -51,6 +53,8 @@ export const useChat = (options: UseChatOptions) => {
   const isCreatingSummaryRef = useRef(false); // Флаг для предотвращения одновременного создания summary
   const isInitialLoadRef = useRef(true); // Флаг для отслеживания первоначальной загрузки (начинаем с true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Таймер для отложенного сохранения
+  const statusEventSourceRef = useRef<EventSource | null>(null); // SSE соединение для статусов
+  const activeStatusMessagesRef = useRef<Map<string, Message>>(new Map()); // Активные статусные сообщения
   
   const { 
     chatId,
@@ -148,6 +152,97 @@ export const useChat = (options: UseChatOptions) => {
 
     return history;
   }, [enableCompression]);
+
+  /**
+   * Подключается к SSE потоку для получения статусов выполнения инструментов
+   */
+  const connectToStatusStream = useCallback((requestId: string) => {
+    // Закрываем предыдущее соединение, если оно есть
+    if (statusEventSourceRef.current) {
+      statusEventSourceRef.current.close();
+    }
+    
+    // Создаем новое SSE соединение
+    const eventSource = new EventSource(`${API_BASE_URL}/api/status/${requestId}`);
+    statusEventSourceRef.current = eventSource;
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'close') {
+          // Соединение закрыто, удаляем статусные сообщения
+          setMessages((prev) => {
+            return prev.filter((msg) => msg.type !== 'status');
+          });
+          activeStatusMessagesRef.current.clear();
+          eventSource.close();
+          statusEventSourceRef.current = null;
+          return;
+        }
+        
+        // Создаем или обновляем статусное сообщение
+        const statusMessage: StatusMessage = {
+          toolName: data.toolName,
+          status: data.status,
+          message: data.message,
+          timestamp: new Date(data.timestamp),
+          serverName: data.serverName,
+          error: data.error,
+        };
+        
+        const messageId = `status-${data.toolName}-${data.timestamp}`;
+        const existingMessage = activeStatusMessagesRef.current.get(data.toolName);
+        
+        if (existingMessage) {
+          // Обновляем существующее сообщение
+          setMessages((prev) => {
+            return prev.map((msg) => {
+              if (msg.id === existingMessage.id) {
+                return {
+                  ...msg,
+                  statusMessage,
+                  content: statusMessage.message,
+                };
+              }
+              return msg;
+            });
+          });
+        } else {
+          // Создаем новое статусное сообщение
+          const newMessage: Message = {
+            id: messageId,
+            type: 'status',
+            content: statusMessage.message,
+            timestamp: statusMessage.timestamp,
+            statusMessage,
+          };
+          
+          activeStatusMessagesRef.current.set(data.toolName, newMessage);
+          setMessages((prev) => [...prev, newMessage]);
+        }
+        
+        // Если статус завершен или ошибка, удаляем сообщение через некоторое время
+        // Увеличиваем время показа для лучшей видимости
+        if (data.status === 'completed' || data.status === 'error') {
+          setTimeout(() => {
+            setMessages((prev) => {
+              return prev.filter((msg) => msg.id !== messageId);
+            });
+            activeStatusMessagesRef.current.delete(data.toolName);
+          }, 5000); // Увеличено с 2 до 5 секунд
+        }
+      } catch (error) {
+        console.error('Ошибка при обработке статуса:', error);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('Ошибка SSE соединения:', error);
+      eventSource.close();
+      statusEventSourceRef.current = null;
+    };
+  }, [setMessages]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -263,7 +358,20 @@ export const useChat = (options: UseChatOptions) => {
           { type: 'user', content: content.trim() },
         ]);
 
-        const responses = await sendToMultipleModels(models, aiMessages);
+        // Генерируем requestId для отслеживания статусов
+        const requestId = generateId();
+        
+        // Подключаемся к SSE для получения статусов
+        connectToStatusStream(requestId);
+        
+        const responses = await sendToMultipleModels(models, aiMessages, chatId, requestId);
+        
+        // Закрываем SSE соединение после завершения запросов
+        // НЕ удаляем статусные сообщения сразу - они будут удалены автоматически через таймаут
+        if (statusEventSourceRef.current) {
+          statusEventSourceRef.current.close();
+          statusEventSourceRef.current = null;
+        }
         
         const assistantMessages = responses.map(({ modelName, response }) => ({
           id: generateId(),
@@ -326,9 +434,23 @@ export const useChat = (options: UseChatOptions) => {
               }))
             );
 
+            // Генерируем requestId для отслеживания статусов
+            const requestId = generateId();
+            
+            // Подключаемся к SSE для получения статусов
+            connectToStatusStream(requestId);
+
             const startTime = performance.now();
-            const response = await model.sendMessage(aiMessages);
+            const response = await model.sendMessage(aiMessages, { chatId, requestId });
             const endTime = performance.now();
+            
+            // Закрываем SSE соединение после завершения запроса
+            // НЕ удаляем статусные сообщения сразу - они будут удалены автоматически через таймаут
+            if (statusEventSourceRef.current) {
+              statusEventSourceRef.current.close();
+              statusEventSourceRef.current = null;
+            }
+            
             const responseTime = endTime - startTime;
             
             const assistantMessage: Message = {
@@ -399,6 +521,12 @@ export const useChat = (options: UseChatOptions) => {
         // Все модели видят исходную историю разговора (без ответов других моделей из этого запроса)
         const conversationHistory: Message[] = [...recentMessages, userMessage];
 
+        // Генерируем requestId для отслеживания статусов
+        const requestId = generateId();
+        
+        // Подключаемся к SSE для получения статусов
+        connectToStatusStream(requestId);
+
         // Запускаем все модели параллельно и обрабатываем результаты по мере готовности
         const promises = models.map(async ({ model, name }) => {
           const startTime = performance.now();
@@ -411,7 +539,7 @@ export const useChat = (options: UseChatOptions) => {
               }))
             );
 
-            const response = await model.sendMessage(aiMessages);
+            const response = await model.sendMessage(aiMessages, { chatId, requestId });
             const endTime = performance.now();
             const responseTime = endTime - startTime;
             
@@ -457,6 +585,13 @@ export const useChat = (options: UseChatOptions) => {
 
         // Ждем завершения всех промисов (для обработки ошибок)
         await Promise.allSettled(promises);
+        
+        // Закрываем SSE соединение после завершения всех запросов
+        // НЕ удаляем статусные сообщения сразу - они будут удалены автоматически через таймаут
+        if (statusEventSourceRef.current) {
+          statusEventSourceRef.current.close();
+          statusEventSourceRef.current = null;
+        }
         
         // Проверяем сжатие после завершения всех ответов
         setMessages((current) => {
@@ -507,7 +642,7 @@ export const useChat = (options: UseChatOptions) => {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, models, mode, analyzerModel, enableCompression, compressionInterval, compressionModel, getConversationHistory]);
+  }, [messages, models, mode, analyzerModel, enableCompression, compressionInterval, compressionModel, getConversationHistory, connectToStatusStream, chatId]);
 
   // Загрузка сообщений при монтировании компонента или смене chatId
   useEffect(() => {
@@ -561,6 +696,13 @@ export const useChat = (options: UseChatOptions) => {
   }, [messages, chatId]);
 
   const clearMessages = useCallback(async () => {
+    // Закрываем SSE соединение при очистке сообщений
+    if (statusEventSourceRef.current) {
+      statusEventSourceRef.current.close();
+      statusEventSourceRef.current = null;
+    }
+    activeStatusMessagesRef.current.clear();
+    
     setMessages([]);
     setError(null);
     // Очищаем сообщения на сервере

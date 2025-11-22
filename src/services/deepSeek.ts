@@ -34,12 +34,20 @@ export class DeepSeekModel extends AIModel {
   }
 
   /**
-   * Переопределяем buildRequestBody для добавления enableMCP
+   * Переопределяем buildRequestBody для добавления enableMCP, chatId и requestId
    */
   protected buildRequestBody(validMessages: Array<{ role: 'user' | 'assistant' | 'system'; text: string }>, additionalData?: Record<string, any>): Record<string, any> {
     const body = super.buildRequestBody(validMessages, additionalData);
     if (this.enableMCP) {
       body.enableMCP = true;
+    }
+    // Добавляем chatId если он передан в additionalData
+    if (additionalData?.chatId) {
+      body.chatId = additionalData.chatId;
+    }
+    // Добавляем requestId если он передан в additionalData
+    if (additionalData?.requestId) {
+      body.requestId = additionalData.requestId;
     }
     return body;
   }

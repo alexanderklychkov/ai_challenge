@@ -152,10 +152,11 @@ export abstract class AIModel {
   /**
    * Отправляет запрос к AI модели через прокси-сервер
    */
-  async sendMessage(messages: AIMessage[]): Promise<AIResponse> {
+  async sendMessage(messages: AIMessage[], additionalData?: Record<string, any>): Promise<AIResponse> {
     try {
       const validMessages = this.validateMessages(messages);
-      const requestBody = this.buildRequestBody(validMessages, this.getAdditionalRequestData());
+      const mergedAdditionalData = { ...this.getAdditionalRequestData(), ...additionalData };
+      const requestBody = this.buildRequestBody(validMessages, mergedAdditionalData);
       const data = await this.fetchFromProxy(requestBody);
       return this.parseResponse(data.text, {
         tokens: data.tokens,

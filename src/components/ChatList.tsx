@@ -1,51 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Chat } from '../types/chat';
 import { loadChats, createChat, deleteChat, updateChatTitle } from '../services/storage';
 import { Plus, Edit, Trash2, MessageSquare, BarChart3 } from 'lucide-react';
 
 interface ChatListProps {
-  currentChatId: string;
-  onChatSelect: (chatId: string) => void;
-  onChatCreated?: (chatId: string) => void;
   refreshTrigger?: number; // Триггер для обновления списка
 }
 
-const ChatList = ({ currentChatId, onChatSelect, onChatCreated, refreshTrigger }: ChatListProps) => {
+const ChatList = ({ refreshTrigger }: ChatListProps) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Извлекаем chatId из пути /chat/:chatId
+  const chatIdMatch = location.pathname.match(/^\/chat\/(.+)$/);
+  const currentChatId = chatIdMatch ? chatIdMatch[1] : '';
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const prevRefreshTriggerRef = useRef(refreshTrigger);
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     loadChatsList();
   }, []);
   
-  // Обновляем при изменении текущего чата или при триггере обновления
+  // Обновляем при изменении триггера обновления (только если он действительно изменился)
   useEffect(() => {
-    if (refreshTrigger !== undefined) {
+    if (refreshTrigger !== undefined && refreshTrigger !== prevRefreshTriggerRef.current && !isLoadingRef.current) {
+      prevRefreshTriggerRef.current = refreshTrigger;
       loadChatsList();
     }
-  }, [currentChatId, refreshTrigger]);
+  }, [refreshTrigger]);
 
   const loadChatsList = async () => {
+    if (isLoadingRef.current) return; // Предотвращаем параллельные загрузки
+    
+    isLoadingRef.current = true;
     setIsLoading(true);
     try {
       const loadedChats = await loadChats();
-      setChats(loadedChats);
+      
+      // Обновляем только если данные действительно изменились
+      setChats(prevChats => {
+        const chatsChanged = JSON.stringify(prevChats) !== JSON.stringify(loadedChats);
+        return chatsChanged ? loadedChats : prevChats;
+      });
       
       // Если нет чатов, создаем первый
       if (loadedChats.length === 0) {
         const newChat = await createChat('Новый чат');
         if (newChat) {
           setChats([newChat]);
-          onChatSelect(newChat.id);
-          onChatCreated?.(newChat.id);
+          navigate(`/chat/${newChat.id}`, { replace: true });
         }
       }
     } catch (error) {
       console.error('Ошибка при загрузке чатов:', error);
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
   };
 
@@ -53,8 +67,8 @@ const ChatList = ({ currentChatId, onChatSelect, onChatCreated, refreshTrigger }
     const newChat = await createChat(`Чат ${chats.length + 1}`);
     if (newChat) {
       setChats((prev) => [newChat, ...prev]);
-      onChatSelect(newChat.id);
-      onChatCreated?.(newChat.id);
+      sessionStorage.setItem('lastSelectedChatId', newChat.id);
+      navigate(`/chat/${newChat.id}`);
     }
   };
 
@@ -73,7 +87,9 @@ const ChatList = ({ currentChatId, onChatSelect, onChatCreated, refreshTrigger }
         if (chatId === currentChatId) {
           const remainingChats = chats.filter((chat) => chat.id !== chatId);
           if (remainingChats.length > 0) {
-            onChatSelect(remainingChats[0].id);
+            navigate(`/chat/${remainingChats[0].id}`, { replace: true });
+          } else {
+            navigate('/chat', { replace: true });
           }
         }
       }
@@ -149,7 +165,10 @@ const ChatList = ({ currentChatId, onChatSelect, onChatCreated, refreshTrigger }
         {chats.map((chat) => (
           <div
             key={chat.id}
-            onClick={() => onChatSelect(chat.id)}
+            onClick={() => {
+              sessionStorage.setItem('lastSelectedChatId', chat.id);
+              navigate(`/chat/${chat.id}`);
+            }}
             className={`
               group relative p-3 rounded-lg cursor-pointer transition-all duration-200
               ${
@@ -207,9 +226,6 @@ const ChatList = ({ currentChatId, onChatSelect, onChatCreated, refreshTrigger }
                     )}
                   </div>
                 </div>
-                {currentChatId === chat.id && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#00f0ff] to-[#b026ff] rounded-r-full"></div>
-                )}
               </>
             )}
           </div>

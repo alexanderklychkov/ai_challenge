@@ -92,6 +92,23 @@ body::before {
   }
 }
 
+/* Анимация для переворота карточек */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
 .animate-slow-pulse {
   animation: slow-pulse 3s ease-in-out infinite;
   will-change: opacity;
@@ -139,4 +156,19 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Курсор для кликабельных элементов */
+button,
+a,
+[role="button"],
+[onclick],
+label[for] {
+  cursor: pointer;
+}
+
+/* Исключения для disabled элементов */
+button:disabled,
+[disabled] {
+  cursor: not-allowed;
 }

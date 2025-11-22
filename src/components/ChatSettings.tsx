@@ -187,7 +187,7 @@ const ChatSettings = ({ chat, onSave, onClose, open }: ChatSettingsProps) => {
                     {settings.agents.length > 1 && (
                       <button
                         onClick={() => handleRemoveAgent(agent.id || index.toString())}
-                        className="p-1 hover:bg-[#2a2a3a] rounded text-[#a0a0b0] hover:text-[#ff4444] transition-colors"
+                        className="p-1 hover:bg-[#2a2a3a] rounded text-[#a0a0b0] hover:text-[#ff4444] transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
