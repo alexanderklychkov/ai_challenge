@@ -45,6 +45,7 @@ import {
   deleteFlashcardSet,
 } from './utils/learningStorage.js';
 import { registerConnection } from './utils/statusEmitter.js';
+import { DocumentIndexer } from './rag/indexer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -587,6 +588,197 @@ app.get('/api/status/:requestId', (req, res) => {
 
   // Регистрируем соединение для отправки статусов
   registerConnection(requestId, res);
+});
+
+// Эндпоинты для работы с индексацией документов
+// Создаем глобальный экземпляр индексатора
+let documentIndexer = null;
+
+async function getDocumentIndexer() {
+  if (!documentIndexer) {
+    documentIndexer = new DocumentIndexer({
+      embeddingConfig: {
+        apiUrl: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/embeddings',
+        apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
+        model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'all-MiniLM-L6-v2',
+      },
+      chunkOptions: {
+        chunkSize: parseInt(process.env.DOCUMENT_CHUNK_SIZE) || 1000,
+        chunkOverlap: parseInt(process.env.DOCUMENT_CHUNK_OVERLAP) || 200,
+      },
+    });
+    await documentIndexer.initialize();
+  }
+  return documentIndexer;
+}
+
+// Инициализация индексатора при запуске сервера
+getDocumentIndexer().catch(err => {
+  console.warn('Не удалось инициализировать индексатор документов:', err.message);
+});
+
+// Проверка доступности API эмбеддингов
+app.get('/api/documents/embedding/check', async (req, res) => {
+  try {
+    const indexer = await getDocumentIndexer();
+    const isAvailable = await indexer.checkEmbeddingAvailability();
+    res.json({ available: isAvailable });
+  } catch (error) {
+    console.error('Ошибка при проверке API эмбеддингов:', error);
+    res.status(500).json({ error: error.message, available: false });
+  }
+});
+
+// Статистика индекса
+app.get('/api/documents/stats', async (req, res) => {
+  try {
+    const indexer = await getDocumentIndexer();
+    const stats = indexer.getStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Ошибка при получении статистики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Индексация файла
+app.post('/api/documents/index/file', async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath) {
+      return res.status(400).json({ error: 'filePath обязателен' });
+    }
+
+    const indexer = await getDocumentIndexer();
+    const result = await indexer.indexFile(filePath, (progress) => {
+      // Можно использовать SSE для отправки прогресса
+      console.log('Прогресс индексации:', progress);
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при индексации файла:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Индексация директории
+app.post('/api/documents/index/directory', async (req, res) => {
+  try {
+    const { dirPath, ignorePatterns } = req.body;
+    if (!dirPath) {
+      return res.status(400).json({ error: 'dirPath обязателен' });
+    }
+
+    const indexer = await getDocumentIndexer();
+    const result = await indexer.indexDirectory(
+      dirPath,
+      ignorePatterns || ['.git', 'node_modules', 'dist', '.next', 'build'],
+      (progress) => {
+        console.log('Прогресс индексации:', progress);
+      }
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при индексации директории:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Индексация текста
+app.post('/api/documents/index/text', async (req, res) => {
+  try {
+    const { text, metadata } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'text обязателен' });
+    }
+
+    const indexer = await getDocumentIndexer();
+    const result = await indexer.indexText(text, metadata || {}, (progress) => {
+      console.log('Прогресс индексации:', progress);
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при индексации текста:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Поиск по индексу
+app.post('/api/documents/search', async (req, res) => {
+  try {
+    const { query, topK = 5, minScore = 0.5 } = req.body;
+    if (!query) {
+      return res.status(400).json({ error: 'query обязателен' });
+    }
+
+    const indexer = await getDocumentIndexer();
+    const results = await indexer.search(query, topK, minScore);
+
+    res.json({
+      query,
+      results: results.map(r => ({
+        text: r.chunk.text,
+        score: r.score,
+        metadata: r.chunk.metadata,
+        document: r.document,
+      })),
+    });
+  } catch (error) {
+    console.error('Ошибка при поиске:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Получение всех документов
+app.get('/api/documents', async (req, res) => {
+  try {
+    const indexer = await getDocumentIndexer();
+    const documents = indexer.index.getAllDocuments();
+    res.json(documents);
+  } catch (error) {
+    console.error('Ошибка при получении документов:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Получение чанков документа
+app.get('/api/documents/:documentId/chunks', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const indexer = await getDocumentIndexer();
+    const chunks = indexer.index.getChunksByDocument(documentId);
+    res.json(chunks.map(chunk => ({
+      id: chunk.id,
+      text: chunk.text,
+      metadata: chunk.metadata,
+      // Не отправляем эмбеддинги для экономии трафика
+    })));
+  } catch (error) {
+    console.error('Ошибка при получении чанков:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Удаление документа из индекса
+app.delete('/api/documents/:documentId', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const indexer = await getDocumentIndexer();
+    const success = indexer.index.removeDocument(documentId);
+    
+    if (success) {
+      await indexer.index.save();
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'Документ не найден' });
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении документа:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(PORT, async () => {
