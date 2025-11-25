@@ -34,7 +34,7 @@ async function main() {
     embeddingConfig: {
       apiUrl: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/embeddings',
       apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
-      model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'all-MiniLM-L6-v2',
+        model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
     },
     chunkOptions: {
       chunkSize: parseInt(process.env.DOCUMENT_CHUNK_SIZE) || 1000,

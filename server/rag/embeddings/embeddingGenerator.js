@@ -11,8 +11,8 @@ export class EmbeddingGenerator {
   constructor(config = {}) {
     this.apiUrl = config.apiUrl || process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/embeddings';
     this.apiKey = config.apiKey || process.env.LM_STUDIO_API_KEY || 'lm-studio';
-    this.model = config.model || process.env.LM_STUDIO_EMBEDDING_MODEL || 'all-MiniLM-L6-v2';
-    this.dimension = config.dimension || 384; // Размерность для all-MiniLM-L6-v2
+    this.model = config.model || process.env.LM_STUDIO_EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5';
+    this.dimension = config.dimension || 768; // Размерность для text-embedding-nomic-embed-text-v1.5
   }
 
   /**

@@ -10,7 +10,8 @@
     "dev:all": "concurrently -n \"SERVER,MCP,CLIENT\" -c \"blue,green,yellow\" \"npm run dev:server\" \"npm run dev:mcp\" \"npm run dev\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "rag:index-test": "node server/rag/scripts/indexTestRAG.js"
   },
   "dependencies": {
     "@doist/todoist-api-typescript": "^6.1.7",

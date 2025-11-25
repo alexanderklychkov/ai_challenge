@@ -23,7 +23,7 @@ npm install
 ## Настройка LM Studio
 
 1. Установите и запустите [LM Studio](https://lmstudio.ai/)
-2. Загрузите модель для эмбеддингов (например, `all-MiniLM-L6-v2` или другую)
+2. Загрузите модель для эмбеддингов (например, `text-embedding-nomic-embed-text-v1.5` или другую)
 3. Запустите сервер в LM Studio (обычно на порту 1234)
 4. Убедитесь, что модель поддерживает эндпоинт `/v1/embeddings`
 
@@ -35,7 +35,7 @@ npm install
 # LM Studio настройки
 LM_STUDIO_URL=http://localhost:1234/v1/embeddings
 LM_STUDIO_API_KEY=lm-studio
-LM_STUDIO_EMBEDDING_MODEL=all-MiniLM-L6-v2
+LM_STUDIO_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
 
 # Настройки разбивки на чанки
 DOCUMENT_CHUNK_SIZE=1000
@@ -125,7 +125,7 @@ import { DocumentIndexer } from './rag/indexer.js';
 const indexer = new DocumentIndexer({
   embeddingConfig: {
     apiUrl: 'http://localhost:1234/v1/embeddings',
-    model: 'all-MiniLM-L6-v2',
+    model: 'text-embedding-nomic-embed-text-v1.5',
   },
   chunkOptions: {
     chunkSize: 1000,
@@ -202,7 +202,7 @@ server/rag/
   "metadata": {
     "totalDocuments": 1,
     "totalChunks": 5,
-    "embeddingModel": "all-MiniLM-L6-v2",
+        "embeddingModel": "text-embedding-nomic-embed-text-v1.5",
     "embeddingDimension": 384
   }
 }

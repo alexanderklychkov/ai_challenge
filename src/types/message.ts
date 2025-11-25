@@ -34,6 +34,12 @@ export interface StatusMessage {
   error?: string;
 }
 
+export interface RAGChunk {
+  text: string;
+  score: number;
+  source: string;
+}
+
 export interface Message {
   id: string;
   type: 'user' | 'assistant' | 'status';
@@ -45,4 +51,6 @@ export interface Message {
   originalMessageIds?: string[]; // ID оригинальных сообщений, которые были сжаты в это summary
   compressedBy?: string; // ID summary сообщения, которое заменило это сообщение в истории для AI
   statusMessage?: StatusMessage; // Для статусных сообщений
+  ragComparison?: any; // Результат сравнения RAG vs No RAG (RAGComparisonResult)
+  ragChunks?: RAGChunk[]; // Релевантные чанки для RAG ответа
 }

@@ -67,6 +67,9 @@ const ChatSettings = ({ chat, onSave, onClose, open }: ChatSettingsProps) => {
       agents: [getDefaultAgent()],
       enableCompression: false,
       compressionInterval: 6,
+      ragMode: 'none',
+      ragTopK: 5,
+      ragMinScore: 0.3,
     }
   );
 
@@ -325,6 +328,58 @@ const ChatSettings = ({ chat, onSave, onClose, open }: ChatSettingsProps) => {
                   }
                   className="w-full"
                 />
+              </div>
+            )}
+          </div>
+
+          {/* RAG режим */}
+          <div>
+            <div className="mb-2">
+              <label className="block text-sm font-semibold text-[#00f0ff] mb-2">Режим RAG</label>
+              <RadioGroup
+                value={settings.ragMode || 'none'}
+                onChange={(value) => setSettings((prev) => ({ ...prev, ragMode: value as 'none' | 'rag' | 'compare' }))}
+                options={[
+                  { value: 'none', label: 'Без RAG', description: 'Обычные запросы к модели' },
+                  { value: 'rag', label: 'С RAG', description: 'Использовать релевантные чанки из документов' },
+                  { value: 'compare', label: 'Сравнение', description: 'Сравнить ответы с RAG и без RAG' },
+                ]}
+              />
+            </div>
+            {(settings.ragMode === 'rag' || settings.ragMode === 'compare') && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs text-[#a0a0b0] mb-1">
+                    Количество чанков (topK): {settings.ragTopK || 5}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={settings.ragTopK || 5}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, ragTopK: parseInt(e.target.value) }))
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#a0a0b0] mb-1">
+                    Минимальный score: {settings.ragMinScore || 0.3}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={settings.ragMinScore || 0.3}
+                    onChange={(e) =>
+                      setSettings((prev) => ({ ...prev, ragMinScore: parseFloat(e.target.value) }))
+                    }
+                    className="w-full"
+                  />
+                </div>
               </div>
             )}
           </div>

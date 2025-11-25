@@ -46,6 +46,7 @@ import {
 } from './utils/learningStorage.js';
 import { registerConnection } from './utils/statusEmitter.js';
 import { DocumentIndexer } from './rag/indexer.js';
+import { RAGService } from './rag/ragService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -593,6 +594,7 @@ app.get('/api/status/:requestId', (req, res) => {
 // Эндпоинты для работы с индексацией документов
 // Создаем глобальный экземпляр индексатора
 let documentIndexer = null;
+let ragService = null;
 
 async function getDocumentIndexer() {
   if (!documentIndexer) {
@@ -600,7 +602,7 @@ async function getDocumentIndexer() {
       embeddingConfig: {
         apiUrl: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/embeddings',
         apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
-        model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'all-MiniLM-L6-v2',
+        model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
       },
       chunkOptions: {
         chunkSize: parseInt(process.env.DOCUMENT_CHUNK_SIZE) || 1000,
@@ -610,6 +612,14 @@ async function getDocumentIndexer() {
     await documentIndexer.initialize();
   }
   return documentIndexer;
+}
+
+async function getRAGService() {
+  if (!ragService) {
+    const indexer = await getDocumentIndexer();
+    ragService = new RAGService(indexer);
+  }
+  return ragService;
 }
 
 // Инициализация индексатора при запуске сервера
@@ -777,6 +787,160 @@ app.delete('/api/documents/:documentId', async (req, res) => {
     }
   } catch (error) {
     console.error('Ошибка при удалении документа:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для сравнения ответов с RAG и без RAG
+app.post('/api/rag/compare', async (req, res) => {
+  try {
+    const { question, modelType, messages = [], topK = 5, minScore = 0.3, model, temperature, max_tokens, system_prompt } = req.body;
+    
+    if (!question) {
+      return res.status(400).json({ error: 'question обязателен' });
+    }
+
+    if (!modelType) {
+      return res.status(400).json({ error: 'modelType обязателен (deepseek, yandex, chatgpt, huggingface)' });
+    }
+
+    // Получаем RAG сервис
+    const rag = await getRAGService();
+
+    // Создаем функцию для вызова LLM в зависимости от типа модели
+    const llmCaller = async (prompt, historyMessages) => {
+      const requestBody = {
+        messages: historyMessages.length > 0 
+          ? historyMessages 
+          : [{ role: 'user', content: prompt }],
+        system_prompt: system_prompt || '',
+        model: model || undefined,
+        temperature: temperature || 0.3,
+        max_tokens: max_tokens || 2000,
+      };
+
+      let handler;
+      let apiUrl;
+
+      switch (modelType.toLowerCase()) {
+        case 'deepseek':
+          handler = handleDeepSeek;
+          apiUrl = '/api/deepseek';
+          break;
+        case 'yandex':
+        case 'yandexgpt':
+          handler = handleYandexGPT;
+          apiUrl = '/api/yandex-gpt';
+          break;
+        case 'chatgpt':
+        case 'openai':
+          handler = handleChatGPT;
+          apiUrl = '/api/chatgpt';
+          break;
+        case 'huggingface':
+          handler = handleHuggingFace;
+          apiUrl = '/api/huggingface';
+          break;
+        default:
+          throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
+      }
+
+      // Вызываем обработчик через внутренний запрос
+      return new Promise((resolve, reject) => {
+        const mockReq = { body: requestBody };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: (code) => ({
+            json: (data) => reject(new Error(data.error || `HTTP ${code}`)),
+          }),
+        };
+
+        handler(mockReq, mockRes).catch(reject);
+      });
+    };
+
+    // Выполняем сравнение
+    const comparison = await rag.compareRAGvsNoRAG(question, llmCaller, {
+      messages,
+      topK,
+      minScore,
+    });
+
+    res.json(comparison);
+  } catch (error) {
+    console.error('Ошибка при сравнении RAG:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для запроса с RAG
+app.post('/api/rag/query', async (req, res) => {
+  try {
+    const { question, modelType, messages = [], topK = 5, minScore = 0.3, model, temperature, max_tokens, system_prompt } = req.body;
+    
+    if (!question) {
+      return res.status(400).json({ error: 'question обязателен' });
+    }
+
+    if (!modelType) {
+      return res.status(400).json({ error: 'modelType обязателен' });
+    }
+
+    const rag = await getRAGService();
+
+    const llmCaller = async (prompt, historyMessages) => {
+      const requestBody = {
+        messages: historyMessages.length > 0 
+          ? historyMessages 
+          : [{ role: 'user', content: prompt }],
+        system_prompt: system_prompt || '',
+        model: model || undefined,
+        temperature: temperature || 0.3,
+        max_tokens: max_tokens || 2000,
+      };
+
+      let handler;
+      switch (modelType.toLowerCase()) {
+        case 'deepseek':
+          handler = handleDeepSeek;
+          break;
+        case 'yandex':
+        case 'yandexgpt':
+          handler = handleYandexGPT;
+          break;
+        case 'chatgpt':
+        case 'openai':
+          handler = handleChatGPT;
+          break;
+        case 'huggingface':
+          handler = handleHuggingFace;
+          break;
+        default:
+          throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
+      }
+
+      return new Promise((resolve, reject) => {
+        const mockReq = { body: requestBody };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: (code) => ({
+            json: (data) => reject(new Error(data.error || `HTTP ${code}`)),
+          }),
+        };
+
+        handler(mockReq, mockRes).catch(reject);
+      });
+    };
+
+    const result = await rag.queryWithRAG(question, llmCaller, {
+      messages,
+      topK,
+      minScore,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при RAG запросе:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -137,6 +137,9 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
   const chatMode = currentChat?.settings?.mode || 'chain-fast';
   const chatEnableCompression = currentChat?.settings?.enableCompression || false;
   const chatCompressionInterval = currentChat?.settings?.compressionInterval || 6;
+  const ragMode = currentChat?.settings?.ragMode || 'none';
+  const ragTopK = currentChat?.settings?.ragTopK || 5;
+  const ragMinScore = currentChat?.settings?.ragMinScore || 0.3;
 
   // Модель-анализатор для команды /analyze
   const analyzerModel = useMemo(() => ({
@@ -148,6 +151,14 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
     name: 'Анализатор (GPT-OSS-120b)'
   }), []);
   
+  // Определяем тип модели для RAG (из первого агента)
+  const modelType = useMemo(() => {
+    if (currentChat?.settings?.agents && currentChat.settings.agents.length > 0) {
+      return currentChat.settings.agents[0].type as 'deepseek' | 'yandex' | 'chatgpt' | 'huggingface';
+    }
+    return 'deepseek' as const;
+  }, [currentChat?.settings?.agents]);
+
   // Режим работы: 'parallel' - параллельно, 'chain' - цепочкой
   const { messages, isLoading, isLoadingMessages, sendMessage, clearMessages, tokenStatistics } = useChat({ 
     chatId: currentChatId || 'temp',
@@ -157,6 +168,10 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
     enableCompression: chatEnableCompression,
     compressionInterval: chatCompressionInterval,
     compressionModel: models[0],
+    ragMode,
+    ragTopK,
+    ragMinScore,
+    modelType,
   });
 
   const handleSaveSettings = async (settings: ChatSettingsType) => {

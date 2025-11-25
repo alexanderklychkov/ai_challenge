@@ -6,6 +6,7 @@ import { getMarkdownComponents } from '../utils/markdownComponents';
 import { Zap, Package, Send, Code, Sparkles, Settings, Wrench, FileText, CreditCard, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseLearningContent } from '../utils/parseLearningContent';
+import { RAGComparison } from './RAGComparison';
 
 interface ChatAreaProps {
   messages: Message[]
@@ -264,6 +265,29 @@ const ChatArea = ({
                             : 'Продвинутый'}
                         </span>
                       )}
+                    </div>
+                  )}
+
+                  {/* RAG Comparison */}
+                  {message.ragComparison && (
+                    <div className="mb-4">
+                      <RAGComparison comparison={message.ragComparison} />
+                    </div>
+                  )}
+
+                  {/* RAG Chunks */}
+                  {message.ragChunks && message.ragChunks.length > 0 && (
+                    <div className="mb-4 p-3 bg-[#151520] rounded-lg border border-[#2a2a3a]">
+                      <div className="text-xs font-medium text-[#00f0ff] mb-2">
+                        Использовано {message.ragChunks.length} релевантных чанков:
+                      </div>
+                      <div className="space-y-2">
+                        {message.ragChunks.slice(0, 3).map((chunk, idx) => (
+                          <div key={idx} className="text-xs text-[#a0a0b0] line-clamp-2">
+                            <span className="text-[#00f0ff]">{chunk.source}</span>: {chunk.text}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 

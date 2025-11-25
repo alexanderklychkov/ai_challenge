@@ -19,6 +19,9 @@ export interface ChatSettings {
   agents: AgentConfig[];
   enableCompression?: boolean;
   compressionInterval?: number;
+  ragMode?: 'none' | 'rag' | 'compare'; // Режим RAG: none - без RAG, rag - с RAG, compare - сравнение
+  ragTopK?: number; // Количество чанков для поиска
+  ragMinScore?: number; // Минимальный score для включения чанка
 }
 
 export interface Chat {

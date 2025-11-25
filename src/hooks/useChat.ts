@@ -6,6 +6,7 @@ import { sendToMultipleModels } from '../utils/multiModel';
 import { parseCommand, executeAnalyzeCommand, executeHelpCommand } from '../utils/commands';
 import { createSummary, shouldCreateSummary, getMessagesToCompress } from '../utils/summarizer';
 import { loadMessages, saveMessages, clearMessages as clearMessagesStorage } from '../services/storage';
+import { compareRAGvsNoRAG, queryWithRAG, RAGComparisonResult, RAGQueryResult } from '../services/rag';
 
 const API_BASE_URL = import.meta.env.VITE_API_PROXY_URL?.replace(/\/api\/.*$/, '') || 'http://localhost:3001';
 
@@ -34,6 +35,10 @@ interface UseChatOptions {
   enableCompression?: boolean; // Включить сжатие истории
   compressionInterval?: number; // Интервал сжатия (по умолчанию 6 сообщений)
   compressionModel?: { model: AIModel; name: string }; // Модель для создания summary (если не указана, используется первая модель)
+  ragMode?: 'none' | 'rag' | 'compare'; // Режим RAG: none - без RAG, rag - с RAG, compare - сравнение
+  ragTopK?: number; // Количество чанков для поиска
+  ragMinScore?: number; // Минимальный score для включения чанка
+  modelType?: 'deepseek' | 'yandex' | 'chatgpt' | 'huggingface'; // Тип модели для RAG запросов
 }
 
 export interface TokenStatistics {
@@ -64,6 +69,10 @@ export const useChat = (options: UseChatOptions) => {
     enableCompression = false,
     compressionInterval = 6,
     compressionModel,
+    ragMode = 'none',
+    ragTopK = 5,
+    ragMinScore = 0.3,
+    modelType = 'deepseek',
   } = options;
 
   // Вычисляем статистику токенов
@@ -345,6 +354,76 @@ export const useChat = (options: UseChatOptions) => {
     setError(null);
 
     try {
+      // Обработка RAG режима
+      if (ragMode === 'compare') {
+        // Режим сравнения: получаем оба ответа и показываем сравнение
+        const recentMessages = getConversationHistory(messages, 10);
+        const messagesForRAG = recentMessages.map((msg) => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+        }));
+
+        const comparison = await compareRAGvsNoRAG(content.trim(), modelType, {
+          messages: messagesForRAG,
+          topK: ragTopK,
+          minScore: ragMinScore,
+          model: models[0]?.model.model || undefined,
+          temperature: models[0]?.model.getConfig().temperature,
+          max_tokens: models[0]?.model.getConfig().maxTokens,
+          system_prompt: models[0]?.model.getConfig().systemPrompt,
+        });
+
+        // Создаем специальное сообщение для сравнения
+        const comparisonMessage: Message = {
+          id: generateId(),
+          type: 'assistant',
+          content: `Сравнение ответов с RAG и без RAG для вопроса: "${comparison.question}"`,
+          timestamp: new Date(),
+          modelName: `RAG Comparison (${modelType})`,
+          ragComparison: comparison,
+        };
+
+        setMessages((prev) => [...prev, comparisonMessage]);
+        setIsLoading(false);
+        return;
+      } else if (ragMode === 'rag') {
+        // Режим только с RAG
+        const recentMessages = getConversationHistory(messages, 10);
+        const messagesForRAG = recentMessages.map((msg) => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+        }));
+
+        const ragResult = await queryWithRAG(content.trim(), modelType, {
+          messages: messagesForRAG,
+          topK: ragTopK,
+          minScore: ragMinScore,
+          model: models[0]?.model.model || undefined,
+          temperature: models[0]?.model.getConfig().temperature,
+          max_tokens: models[0]?.model.getConfig().maxTokens,
+          system_prompt: models[0]?.model.getConfig().systemPrompt,
+        });
+
+        const ragMessage: Message = {
+          id: generateId(),
+          type: 'assistant',
+          content: ragResult.answer,
+          timestamp: new Date(),
+          modelName: `RAG (${modelType})`,
+          aiResponse: {
+            content: ragResult.answer,
+            tokens: ragResult.metadata.tokens,
+            inputTokens: ragResult.metadata.inputTokens,
+            outputTokens: ragResult.metadata.outputTokens,
+          },
+          ragChunks: ragResult.chunks,
+        };
+
+        setMessages((prev) => [...prev, ragMessage]);
+        setIsLoading(false);
+        return;
+      }
+
       // Получаем историю с учетом сжатия
       const recentMessages = getConversationHistory(messages, 10);
       
