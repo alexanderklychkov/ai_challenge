@@ -22,6 +22,11 @@ export interface ChatSettings {
   ragMode?: 'none' | 'rag' | 'compare'; // Режим RAG: none - без RAG, rag - с RAG, compare - сравнение
   ragTopK?: number; // Количество чанков для поиска
   ragMinScore?: number; // Минимальный score для включения чанка
+  // Настройки reranker
+  ragUseReranker?: boolean; // Использовать ли reranker для фильтрации результатов
+  ragRerankerStrategy?: 'threshold' | 'llm_score' | 'hybrid'; // Стратегия reranking
+  ragRerankerThreshold?: number; // Порог релевантности для reranker (0-1)
+  ragRerankerTopK?: number; // Количество результатов после reranking
 }
 
 export interface Chat {

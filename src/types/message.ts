@@ -53,4 +53,5 @@ export interface Message {
   statusMessage?: StatusMessage; // Для статусных сообщений
   ragComparison?: any; // Результат сравнения RAG vs No RAG (RAGComparisonResult)
   ragChunks?: RAGChunk[]; // Релевантные чанки для RAG ответа
+  ragWarning?: string | null; // Предупреждение о проблемах с RAG (например, все чанки отфильтрованы)
 }

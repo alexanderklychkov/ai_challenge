@@ -140,6 +140,10 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
   const ragMode = currentChat?.settings?.ragMode || 'none';
   const ragTopK = currentChat?.settings?.ragTopK || 5;
   const ragMinScore = currentChat?.settings?.ragMinScore || 0.3;
+  const ragUseReranker = currentChat?.settings?.ragUseReranker || false;
+  const ragRerankerStrategy = currentChat?.settings?.ragRerankerStrategy || 'threshold';
+  const ragRerankerThreshold = currentChat?.settings?.ragRerankerThreshold || 0.5;
+  const ragRerankerTopK = currentChat?.settings?.ragRerankerTopK;
 
   // Модель-анализатор для команды /analyze
   const analyzerModel = useMemo(() => ({
@@ -172,6 +176,10 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
     ragTopK,
     ragMinScore,
     modelType,
+    ragUseReranker,
+    ragRerankerStrategy,
+    ragRerankerThreshold,
+    ragRerankerTopK,
   });
 
   const handleSaveSettings = async (settings: ChatSettingsType) => {

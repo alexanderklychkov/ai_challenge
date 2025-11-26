@@ -70,6 +70,10 @@ const ChatSettings = ({ chat, onSave, onClose, open }: ChatSettingsProps) => {
       ragMode: 'none',
       ragTopK: 5,
       ragMinScore: 0.3,
+      ragUseReranker: false,
+      ragRerankerStrategy: 'threshold',
+      ragRerankerThreshold: 0.5,
+      ragRerankerTopK: 5,
     }
   );
 
@@ -379,6 +383,77 @@ const ChatSettings = ({ chat, onSave, onClose, open }: ChatSettingsProps) => {
                     }
                     className="w-full"
                   />
+                </div>
+
+                {/* Настройки Reranker */}
+                <div className="pt-3 border-t border-[#2a2a3a]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Switch
+                      checked={settings.ragUseReranker || false}
+                      onChange={(checked) => setSettings((prev) => ({ ...prev, ragUseReranker: checked }))}
+                    />
+                    <label className="text-sm font-semibold text-[#00f0ff] cursor-pointer">
+                      Использовать фильтр релевантности (Reranker)
+                    </label>
+                  </div>
+                  
+                  {settings.ragUseReranker && (
+                    <div className="ml-7 space-y-3">
+                      <div>
+                        <label className="block text-xs text-[#a0a0b0] mb-1">Стратегия фильтрации</label>
+                        <Select
+                          value={settings.ragRerankerStrategy || 'threshold'}
+                          onChange={(value) => setSettings((prev) => ({ ...prev, ragRerankerStrategy: value as 'threshold' | 'llm_score' | 'hybrid' }))}
+                          options={[
+                            { value: 'threshold', label: 'Порог (быстро)' },
+                            { value: 'llm_score', label: 'LLM оценка (точно)' },
+                            { value: 'hybrid', label: 'Гибридный (баланс)' },
+                          ]}
+                          placeholder="Выберите стратегию..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[#a0a0b0] mb-1">
+                          Порог релевантности: {settings.ragRerankerThreshold?.toFixed(2) || 0.5}
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={settings.ragRerankerThreshold || 0.5}
+                          onChange={(e) =>
+                            setSettings((prev) => ({ ...prev, ragRerankerThreshold: parseFloat(e.target.value) }))
+                          }
+                          className="w-full"
+                        />
+                        <div className="text-xs text-[#666] mt-1 flex justify-between">
+                          <span className="text-[#666]">Мягкий (0.3)</span>
+                          <span className="text-[#666]">Средний (0.5)</span>
+                          <span className="text-[#666]">Строгий (0.7)</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-[#a0a0b0] mb-1">
+                          Количество результатов после фильтрации: {settings.ragRerankerTopK || settings.ragTopK || 5}
+                        </label>
+                        <input
+                          type="range"
+                          min="1"
+                          max="20"
+                          step="1"
+                          value={settings.ragRerankerTopK || settings.ragTopK || 5}
+                          onChange={(e) =>
+                            setSettings((prev) => ({ ...prev, ragRerankerTopK: parseInt(e.target.value) }))
+                          }
+                          className="w-full"
+                        />
+                        <div className="text-xs text-[#666] mt-1">
+                          Оставьте пустым для использования значения topK
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

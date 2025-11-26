@@ -6,7 +6,7 @@ import { sendToMultipleModels } from '../utils/multiModel';
 import { parseCommand, executeAnalyzeCommand, executeHelpCommand } from '../utils/commands';
 import { createSummary, shouldCreateSummary, getMessagesToCompress } from '../utils/summarizer';
 import { loadMessages, saveMessages, clearMessages as clearMessagesStorage } from '../services/storage';
-import { compareRAGvsNoRAG, queryWithRAG, RAGComparisonResult, RAGQueryResult } from '../services/rag';
+import { compareRAGvsNoRAG, queryWithRAG } from '../services/rag';
 
 const API_BASE_URL = import.meta.env.VITE_API_PROXY_URL?.replace(/\/api\/.*$/, '') || 'http://localhost:3001';
 
@@ -39,6 +39,11 @@ interface UseChatOptions {
   ragTopK?: number; // Количество чанков для поиска
   ragMinScore?: number; // Минимальный score для включения чанка
   modelType?: 'deepseek' | 'yandex' | 'chatgpt' | 'huggingface'; // Тип модели для RAG запросов
+  // Настройки reranker
+  ragUseReranker?: boolean; // Использовать ли reranker для фильтрации результатов
+  ragRerankerStrategy?: 'threshold' | 'llm_score' | 'hybrid'; // Стратегия reranking
+  ragRerankerThreshold?: number; // Порог релевантности для reranker (0-1)
+  ragRerankerTopK?: number; // Количество результатов после reranking
 }
 
 export interface TokenStatistics {
@@ -73,6 +78,10 @@ export const useChat = (options: UseChatOptions) => {
     ragTopK = 5,
     ragMinScore = 0.3,
     modelType = 'deepseek',
+    ragUseReranker = false,
+    ragRerankerStrategy = 'threshold',
+    ragRerankerThreshold = 0.5,
+    ragRerankerTopK,
   } = options;
 
   // Вычисляем статистику токенов
@@ -367,10 +376,16 @@ export const useChat = (options: UseChatOptions) => {
           messages: messagesForRAG,
           topK: ragTopK,
           minScore: ragMinScore,
-          model: models[0]?.model.model || undefined,
+          model: models[0]?.model.getConfig().model || undefined,
           temperature: models[0]?.model.getConfig().temperature,
           max_tokens: models[0]?.model.getConfig().maxTokens,
           system_prompt: models[0]?.model.getConfig().systemPrompt,
+          useReranker: ragUseReranker,
+          reranker: ragUseReranker ? {
+            strategy: ragRerankerStrategy,
+            threshold: ragRerankerThreshold,
+            topKAfterRerank: ragRerankerTopK,
+          } : undefined,
         });
 
         // Создаем специальное сообщение для сравнения
@@ -398,10 +413,16 @@ export const useChat = (options: UseChatOptions) => {
           messages: messagesForRAG,
           topK: ragTopK,
           minScore: ragMinScore,
-          model: models[0]?.model.model || undefined,
+          model: models[0]?.model.getConfig().model || undefined,
           temperature: models[0]?.model.getConfig().temperature,
           max_tokens: models[0]?.model.getConfig().maxTokens,
           system_prompt: models[0]?.model.getConfig().systemPrompt,
+          useReranker: ragUseReranker,
+          reranker: ragUseReranker ? {
+            strategy: ragRerankerStrategy,
+            threshold: ragRerankerThreshold,
+            topKAfterRerank: ragRerankerTopK,
+          } : undefined,
         });
 
         const ragMessage: Message = {
@@ -415,8 +436,10 @@ export const useChat = (options: UseChatOptions) => {
             tokens: ragResult.metadata.tokens,
             inputTokens: ragResult.metadata.inputTokens,
             outputTokens: ragResult.metadata.outputTokens,
+            references: [],
           },
           ragChunks: ragResult.chunks,
+          ragWarning: ragResult.warning || null,
         };
 
         setMessages((prev) => [...prev, ragMessage]);

@@ -614,10 +614,11 @@ async function getDocumentIndexer() {
   return documentIndexer;
 }
 
-async function getRAGService() {
-  if (!ragService) {
+async function getRAGService(rerankerConfig = null) {
+  // Если нужна другая конфигурация reranker, создаем новый экземпляр
+  if (!ragService || rerankerConfig) {
     const indexer = await getDocumentIndexer();
-    ragService = new RAGService(indexer);
+    ragService = new RAGService(indexer, rerankerConfig);
   }
   return ragService;
 }
@@ -876,7 +877,19 @@ app.post('/api/rag/compare', async (req, res) => {
 // Эндпоинт для запроса с RAG
 app.post('/api/rag/query', async (req, res) => {
   try {
-    const { question, modelType, messages = [], topK = 5, minScore = 0.3, model, temperature, max_tokens, system_prompt } = req.body;
+    const { 
+      question, 
+      modelType, 
+      messages = [], 
+      topK = 5, 
+      minScore = 0.3, 
+      model, 
+      temperature, 
+      max_tokens, 
+      system_prompt,
+      useReranker = false,
+      reranker = {},
+    } = req.body;
     
     if (!question) {
       return res.status(400).json({ error: 'question обязателен' });
@@ -886,7 +899,18 @@ app.post('/api/rag/query', async (req, res) => {
       return res.status(400).json({ error: 'modelType обязателен' });
     }
 
-    const rag = await getRAGService();
+    // Создаем конфигурацию reranker, если нужно
+    let rerankerConfig = null;
+    if (useReranker) {
+      rerankerConfig = {
+        strategy: reranker.strategy || 'threshold',
+        relevanceThreshold: reranker.threshold ?? 0.5,
+        topKAfterRerank: reranker.topKAfterRerank || topK,
+        llmCaller: null, // Будет установлен позже, если нужен LLM-based reranking
+      };
+    }
+
+    const rag = await getRAGService(rerankerConfig);
 
     const llmCaller = async (prompt, historyMessages) => {
       const requestBody = {
@@ -932,15 +956,124 @@ app.post('/api/rag/query', async (req, res) => {
       });
     };
 
+    // Если нужен LLM-based reranking, устанавливаем llmCaller в reranker
+    if (useReranker && rerankerConfig && (rerankerConfig.strategy === 'llm_score' || rerankerConfig.strategy === 'hybrid')) {
+      rerankerConfig.llmCaller = llmCaller;
+      // Пересоздаем RAGService с обновленной конфигурацией
+      const indexer = await getDocumentIndexer();
+      rag.reranker = new (await import('./rag/reranker/relevanceReranker.js')).RelevanceReranker(rerankerConfig);
+    }
+
     const result = await rag.queryWithRAG(question, llmCaller, {
       messages,
       topK,
       minScore,
+      useReranker,
+      reranker: rerankerConfig,
     });
 
     res.json(result);
   } catch (error) {
     console.error('Ошибка при RAG запросе:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для сравнения качества с фильтром reranker и без фильтра
+app.post('/api/rag/compare-reranker', async (req, res) => {
+  try {
+    const { 
+      question, 
+      modelType, 
+      messages = [], 
+      topK = 5, 
+      minScore = 0.3, 
+      model, 
+      temperature, 
+      max_tokens, 
+      system_prompt,
+      reranker = {},
+    } = req.body;
+    
+    if (!question) {
+      return res.status(400).json({ error: 'question обязателен' });
+    }
+
+    if (!modelType) {
+      return res.status(400).json({ error: 'modelType обязателен' });
+    }
+
+    // Создаем конфигурацию reranker
+    const rerankerConfig = {
+      strategy: reranker.strategy || 'threshold',
+      relevanceThreshold: reranker.threshold ?? 0.5,
+      topKAfterRerank: reranker.topKAfterRerank || topK,
+      llmCaller: null,
+    };
+
+    const rag = await getRAGService(rerankerConfig);
+
+    const llmCaller = async (prompt, historyMessages) => {
+      const requestBody = {
+        messages: historyMessages.length > 0 
+          ? historyMessages 
+          : [{ role: 'user', content: prompt }],
+        system_prompt: system_prompt || '',
+        model: model || undefined,
+        temperature: temperature || 0.3,
+        max_tokens: max_tokens || 2000,
+      };
+
+      let handler;
+      switch (modelType.toLowerCase()) {
+        case 'deepseek':
+          handler = handleDeepSeek;
+          break;
+        case 'yandex':
+        case 'yandexgpt':
+          handler = handleYandexGPT;
+          break;
+        case 'chatgpt':
+        case 'openai':
+          handler = handleChatGPT;
+          break;
+        case 'huggingface':
+          handler = handleHuggingFace;
+          break;
+        default:
+          throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
+      }
+
+      return new Promise((resolve, reject) => {
+        const mockReq = { body: requestBody };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: (code) => ({
+            json: (data) => reject(new Error(data.error || `HTTP ${code}`)),
+          }),
+        };
+
+        handler(mockReq, mockRes).catch(reject);
+      });
+    };
+
+    // Если нужен LLM-based reranking, устанавливаем llmCaller
+    if (rerankerConfig.strategy === 'llm_score' || rerankerConfig.strategy === 'hybrid') {
+      rerankerConfig.llmCaller = llmCaller;
+      const indexer = await getDocumentIndexer();
+      rag.reranker = new (await import('./rag/reranker/relevanceReranker.js')).RelevanceReranker(rerankerConfig);
+    }
+
+    const comparison = await rag.compareWithAndWithoutReranker(question, llmCaller, {
+      messages,
+      topK,
+      minScore,
+      reranker: rerankerConfig,
+    });
+
+    res.json(comparison);
+  } catch (error) {
+    console.error('Ошибка при сравнении с reranker:', error);
     res.status(500).json({ error: error.message });
   }
 });

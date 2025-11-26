@@ -275,6 +275,23 @@ const ChatArea = ({
                     </div>
                   )}
 
+                  {/* RAG Warning */}
+                  {message.ragWarning && (
+                    <div className="mb-4 p-3 bg-[#2a1a1a] rounded-lg border border-[#ff4444]/50">
+                      <div className="flex items-start gap-2">
+                        <div className="text-[#ff4444] text-sm">⚠️</div>
+                        <div className="flex-1">
+                          <div className="text-xs font-medium text-[#ff4444] mb-1">
+                            Предупреждение
+                          </div>
+                          <div className="text-xs text-[#ffaaaa]">
+                            {message.ragWarning}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* RAG Chunks */}
                   {message.ragChunks && message.ragChunks.length > 0 && (
                     <div className="mb-4 p-3 bg-[#151520] rounded-lg border border-[#2a2a3a]">
