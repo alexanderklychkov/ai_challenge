@@ -38,6 +38,7 @@ export interface RAGChunk {
   text: string;
   score: number;
   source: string;
+  chunkText?: string; // Полный текст чанка для выделения в документе
 }
 
 export interface Message {

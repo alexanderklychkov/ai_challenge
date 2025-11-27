@@ -773,6 +773,56 @@ app.get('/api/documents/:documentId/chunks', async (req, res) => {
   }
 });
 
+// Получение содержимого документа по имени файла
+app.get('/api/documents/content/:fileName', async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const indexer = await getDocumentIndexer();
+    const documents = indexer.index.getAllDocuments();
+    
+    // Находим документ по имени файла
+    const document = documents.find(doc => doc.fileName === fileName);
+    
+    if (!document) {
+      return res.status(404).json({ error: 'Документ не найден' });
+    }
+    
+    // Читаем содержимое файла
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    
+    // Путь к файлу документа
+    const documentsDir = path.join(__dirname, 'data', 'documents');
+    const filePath = path.join(documentsDir, fileName);
+    
+    // Проверяем существование файла
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ error: 'Файл не найден' });
+    }
+    
+    // Читаем содержимое файла
+    const content = await fs.readFile(filePath, 'utf-8');
+    
+    res.json({
+      fileName: document.fileName,
+      content: content,
+      type: document.type,
+      filePath: document.filePath,
+      addedAt: document.addedAt,
+    });
+  } catch (error) {
+    console.error('Ошибка при получении содержимого документа:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Удаление документа из индекса
 app.delete('/api/documents/:documentId', async (req, res) => {
   try {

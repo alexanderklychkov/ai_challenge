@@ -15,6 +15,124 @@ export class RAGService {
   }
 
   /**
+   * Проверяет, содержит ли ответ ссылки на источники
+   * @param {string} answer - Ответ модели
+   * @param {number} chunksCount - Количество использованных чанков
+   * @returns {boolean} true, если ответ содержит ссылки на источники
+   */
+  hasSourceReferences(answer, chunksCount) {
+    if (!answer || chunksCount === 0) return false;
+    
+    // Проверяем наличие паттернов типа [Источник 1], [1], [Источник N] и т.д.
+    const sourcePatterns = [
+      /\[Источник\s+\d+\]/i,
+      /\[Источник\s*\d+\]/i,
+      /\[\d+\]\s+[\w\-\.]+/i, // [1] filename.ext - формат с названием файла
+      /источник\s*\d+/i,
+      /\[ref\s*\d+\]/i,
+      /\[source\s*\d+\]/i,
+      /###\s*[Ии]сточник/i, // Заголовок "Источники"
+      /\*\*[Ии]сточник/i, // Жирный текст "Источники"
+      /📚\s*[Ии]сточник/i, // С эмодзи
+    ];
+    
+    // Также проверяем наличие секции с источниками в конце ответа
+    const hasSourcesSection = /(?:---|\*\*\*)\s*\n\s*(?:###|\*\*)?\s*[Ии]сточник/i.test(answer);
+    
+    // Проверяем наличие названий файлов рядом с номерами источников
+    const hasFileNames = /\[\d+\]\s+[\w\-\.]+(?:\.\w+)?/i.test(answer);
+    
+    return sourcePatterns.some(pattern => pattern.test(answer)) || hasSourcesSection || hasFileNames;
+  }
+
+  /**
+   * Удаляет все упоминания источников из ответа
+   * @param {string} answer - Ответ модели
+   * @returns {string} Ответ без упоминаний источников
+   */
+  removeSourceReferences(answer) {
+    if (!answer) return answer;
+    
+    // Удаляем секции с заголовком "Источники" и всем содержимым до конца
+    const sourcesSectionPatterns = [
+      /(?:---|\*\*\*)\s*\n\s*(?:###|\*\*)?\s*[Ии]сточник[^]*?(?=\n\n|$)/gi,
+      /###\s*[Ии]сточник[^]*?(?=\n\n|$)/gi,
+      /\*\*[Ии]сточник[^]*?(?=\n\n|$)/gi,
+      /📚\s*[Ии]сточник[^]*?(?=\n\n|$)/gi,
+    ];
+    
+    sourcesSectionPatterns.forEach(pattern => {
+      answer = answer.replace(pattern, '').trim();
+    });
+    
+    // Удаляем отдельные строки с ссылками на источники
+    const sourceLinePatterns = [
+      /\n*\[Источник\s*\d+\][^\n]*/gi,
+      /\n*\[\d+\]\s*[\w\-\.]+(?:\.\w+)?[^\n]*/g,
+      /\n*-\s*\[\d+\]\s*[\w\-\.]+(?:\.\w+)?[^\n]*/g,
+      /\n*\*\s*\[\d+\]\s*[\w\-\.]+(?:\.\w+)?[^\n]*/g,
+      /\n*[Ии]сточник\s*\d+[^\n]*/gi,
+    ];
+    
+    sourceLinePatterns.forEach(pattern => {
+      answer = answer.replace(pattern, '').trim();
+    });
+    
+    // Удаляем упоминания источников в тексте типа [1], [Источник 1] и т.д.
+    answer = answer.replace(/\[Источник\s*\d+\]/gi, '');
+    answer = answer.replace(/\[Источник\s*\d+:\s*[^\]]+\]/gi, '');
+    answer = answer.replace(/\[\d+\](?!\w)/g, ''); // [1], [2] но не [1abc]
+    
+    // Удаляем лишние пустые строки в конце
+    answer = answer.replace(/\n{3,}/g, '\n\n').trim();
+    
+    return answer;
+  }
+
+  /**
+   * Добавляет ссылки на источники в конец ответа
+   * @param {string} answer - Ответ модели
+   * @param {Array} chunks - Использованные чанки
+   * @returns {string} Ответ с добавленными ссылками на источники
+   */
+  addSourceReferences(answer, chunks) {
+    if (!chunks || chunks.length === 0) return answer;
+    
+    // Удаляем уже существующую секцию источников, если она есть (чтобы не дублировать)
+    answer = this.removeSourceReferences(answer);
+    
+    // Получаем уникальные источники с сохранением порядка и дополнительной информацией
+    const uniqueSources = [];
+    const seenSources = new Set();
+    
+    chunks.forEach((chunk) => {
+      const source = chunk.document?.fileName || chunk.document?.id || 'Неизвестный источник';
+      const sourceType = chunk.document?.type || '';
+      
+      if (!seenSources.has(source)) {
+        seenSources.add(source);
+        uniqueSources.push({
+          index: uniqueSources.length + 1,
+          source: source,
+          type: sourceType,
+        });
+      }
+    });
+    
+    // Формируем красивый список ссылок в формате markdown
+    const referencesText = uniqueSources
+      .map(({ index, source, type }) => {
+        const typeIcon = type === 'pdf' ? '📄' : type === 'markdown' ? '📝' : '📄';
+        return `- **${typeIcon} [${index}]** \`${source}\``;
+      })
+      .join('\n');
+    
+    const referencesSection = `\n\n---\n\n### 📚 Источники\n\n${referencesText}\n\n*Информация взята из документов базы знаний*`;
+    
+    return answer + referencesSection;
+  }
+
+  /**
    * Формирует промпт с контекстом из релевантных чанков
    * @param {string} question - Вопрос пользователя
    * @param {Array} chunks - Релевантные чанки
@@ -38,6 +156,13 @@ export class RAGService {
     const fallbackChunks = chunks.filter(chunk => chunk.isFallback);
     const normalChunks = chunks.filter(chunk => !chunk.isFallback);
 
+    // Создаем маппинг источников для ссылок
+    const sourceMapping = chunks.map((chunk, index) => ({
+      index: index + 1,
+      source: chunk.document?.fileName || chunk.document?.id || 'Неизвестный источник',
+      chunk: chunk,
+    }));
+
     const contextText = chunks
       .map((chunk, index) => {
         const source = chunk.document?.fileName || chunk.document?.id || 'Неизвестный источник';
@@ -45,6 +170,11 @@ export class RAGService {
         return `[Источник ${index + 1}: ${source}]${fallbackNote}\n${chunk.text}`;
       })
       .join('\n\n---\n\n');
+
+    // Формируем список источников для инструкции
+    const sourcesList = sourceMapping
+      .map(({ index, source }) => `[${index}] ${source}`)
+      .join('\n');
 
     let prompt = `Используй следующую информацию из документов для ответа на вопрос.`;
     
@@ -175,11 +305,17 @@ export class RAGService {
     ];
 
     const response = await llmCaller(ragPrompt, ragMessages);
+    
+    let answer = response.text || response.content || response;
+    
+    // Удаляем все упоминания источников из ответа, так как они отображаются отдельно
+    answer = this.removeSourceReferences(answer);
 
     return {
-      answer: response.text || response.content || response,
+      answer: answer,
       chunks: chunks.map(chunk => ({
         text: chunk.text.substring(0, 200) + '...', // Обрезаем для отображения
+        chunkText: chunk.text, // Полный текст чанка для выделения
         score: chunk.score,
         originalScore: chunk.originalScore,
         rerankScore: chunk.rerankScore,

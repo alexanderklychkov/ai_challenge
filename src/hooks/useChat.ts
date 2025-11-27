@@ -438,7 +438,10 @@ export const useChat = (options: UseChatOptions) => {
             outputTokens: ragResult.metadata.outputTokens,
             references: [],
           },
-          ragChunks: ragResult.chunks,
+          ragChunks: ragResult.chunks.map(chunk => ({
+            ...chunk,
+            chunkText: chunk.chunkText || chunk.text, // Сохраняем полный текст чанка
+          })),
           ragWarning: ragResult.warning || null,
         };
 

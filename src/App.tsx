@@ -4,6 +4,7 @@ import ChatList from './components/ChatList.tsx';
 import { LearningList } from './components/LearningList.tsx';
 import { LearningPage } from './components/LearningPage.tsx';
 import { ChatPage } from './pages/ChatPage.tsx';
+import { DocumentViewerPage } from './pages/DocumentViewerPage.tsx';
 import { Code, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -100,6 +101,7 @@ function App() {
             <Route path="/learning/test/:testId" element={<LearningPage />} />
             <Route path="/learning/flashcards/:setId" element={<LearningPage />} />
             <Route path="/learning/plan/:planId" element={<LearningPage />} />
+            <Route path="/documents/:fileName" element={<DocumentViewerPage />} />
           </Routes>
         </div>
       </div>

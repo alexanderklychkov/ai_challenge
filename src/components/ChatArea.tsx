@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Message } from '../types/message';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getMarkdownComponents } from '../utils/markdownComponents';
+import { getMarkdownComponents, processSourceReferences } from '../utils/markdownComponents';
 import { Zap, Package, Send, Code, Sparkles, Settings, Wrench, FileText, CreditCard, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parseLearningContent } from '../utils/parseLearningContent';
@@ -301,7 +301,17 @@ const ChatArea = ({
                       <div className="space-y-2">
                         {message.ragChunks.slice(0, 3).map((chunk, idx) => (
                           <div key={idx} className="text-xs text-[#a0a0b0] line-clamp-2">
-                            <span className="text-[#00f0ff]">{chunk.source}</span>: {chunk.text}
+                            <a
+                              href={`/documents/${encodeURIComponent(chunk.source)}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigate(`/documents/${encodeURIComponent(chunk.source)}`);
+                              }}
+                              className="text-[#00f0ff] hover:text-[#b026ff] underline cursor-pointer transition-colors"
+                            >
+                              {chunk.source}
+                            </a>
+                            : {chunk.text}
                           </div>
                         ))}
                       </div>
@@ -311,9 +321,33 @@ const ChatArea = ({
                   <div className="break-words max-w-none">
                     <Markdown 
                       remarkPlugins={[remarkGfm]}
-                      components={getMarkdownComponents(message.type === 'user')}
+                      components={getMarkdownComponents(
+                        message.type === 'user',
+                        message.ragChunks?.reduce((acc, chunk) => {
+                          if (chunk.chunkText) {
+                            acc[chunk.source] = chunk.chunkText;
+                          }
+                          return acc;
+                        }, {} as Record<string, string>) || {},
+                        // Создаем маппинг номеров источников на имена файлов
+                        message.ragChunks?.reduce((acc, chunk, index) => {
+                          acc[index + 1] = chunk.source;
+                          return acc;
+                        }, {} as Record<number, string>) || {}
+                      )}
                     >
-                      {message.content}
+                      {(() => {
+                        // Обрабатываем текст перед рендерингом markdown для преобразования упоминаний источников в ссылки
+                        if (message.ragChunks && message.ragChunks.length > 0) {
+                          const sourceIndexMap = message.ragChunks.reduce((acc, chunk, index) => {
+                            acc[index + 1] = chunk.source;
+                            return acc;
+                          }, {} as Record<number, string>);
+                          
+                          return processSourceReferences(message.content, sourceIndexMap);
+                        }
+                        return message.content;
+                      })()}
                     </Markdown>
                   </div>
 

@@ -35,6 +35,7 @@ export interface RAGQueryResult {
   answer: string;
   chunks: Array<{
     text: string;
+    chunkText?: string; // Полный текст чанка для выделения
     score: number;
     originalScore?: number;
     rerankScore?: number;
