@@ -311,16 +311,46 @@ export const useChat = (options: UseChatOptions) => {
 
           setMessages((prev) => [...prev, analysisMessage]);
         } else if (commandResult.commandType === 'help') {
-          const helpResponse = executeHelpCommand();
-          const helpMessage: Message = {
-            id: generateId(),
-            type: 'assistant',
-            content: helpResponse.content,
-            timestamp: new Date(),
-            aiResponse: helpResponse,
-            modelName: 'Система',
-          };
-          setMessages((prev) => [...prev, helpMessage]);
+          setIsLoading(true);
+          try {
+            const helpResponse = await executeHelpCommand(
+              commandResult.args || [],
+              modelType || 'deepseek',
+              {
+                model: models[0]?.model.getConfig().model || undefined,
+                temperature: models[0]?.model.getConfig().temperature,
+                max_tokens: models[0]?.model.getConfig().maxTokens,
+                system_prompt: models[0]?.model.getConfig().systemPrompt,
+              }
+            );
+            const helpMessage: Message = {
+              id: generateId(),
+              type: 'assistant',
+              content: helpResponse.content,
+              timestamp: new Date(),
+              aiResponse: helpResponse,
+              modelName: 'RAG Assistant',
+              ragChunks: helpResponse.references?.map(ref => ({
+                text: ref.text,
+                score: ref.score || 0,
+                source: ref.source,
+                chunkText: ref.text,
+              })),
+            };
+            setMessages((prev) => [...prev, helpMessage]);
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Произошла ошибка при выполнении команды /help';
+            const errorResponseMessage: Message = {
+              id: generateId(),
+              type: 'assistant',
+              content: `Ошибка при выполнении команды /help: ${errorMessage}`,
+              timestamp: new Date(),
+              modelName: 'Система',
+            };
+            setMessages((prev) => [...prev, errorResponseMessage]);
+          } finally {
+            setIsLoading(false);
+          }
         } else {
           const errorMessage: Message = {
             id: generateId(),

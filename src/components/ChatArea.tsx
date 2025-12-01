@@ -474,26 +474,7 @@ const ChatArea = ({
                     </div>
                   )}
 
-                  {/* References для assistant сообщений */}
-                  {message.type === 'assistant' && message.aiResponse?.references && message.aiResponse.references.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[#2a2a3a]">
-                      <h4 className="text-sm font-semibold text-[#00f0ff] mb-2">Полезные ссылки:</h4>
-                      <ul className="space-y-1.5">
-                        {message.aiResponse.references.map((ref, index) => (
-                          <li key={index}>
-                            <a
-                              href={ref.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-[#00f0ff] hover:text-[#b026ff] underline break-all transition-colors duration-200 cursor-pointer"
-                            >
-                              {ref.title}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {/* References для assistant сообщений - удалено по запросу пользователя */}
 
                   <div className="flex items-center justify-between mt-2">
                     <div

@@ -267,6 +267,24 @@ app.get('/api/mcp/history', async (req, res) => {
   }
 });
 
+app.post('/api/mcp/call', async (req, res) => {
+  try {
+    const { toolName, args, serverId } = req.body;
+    
+    if (!toolName) {
+      return res.status(400).json({ error: 'toolName обязателен' });
+    }
+    
+    const { callTool } = await import('./mcp/orchestrator.js');
+    const result = await callTool(toolName, args || {}, serverId || null, true);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при вызове MCP инструмента:', error);
+    res.status(500).json({ error: error.message || 'Не удалось вызвать инструмент' });
+  }
+});
+
 // Эндпоинты для работы с флоу
 app.post('/api/mcp/flows', async (req, res) => {
   try {
@@ -624,8 +642,79 @@ async function getRAGService(rerankerConfig = null) {
 }
 
 // Инициализация индексатора при запуске сервера
-getDocumentIndexer().catch(err => {
-  console.warn('Не удалось инициализировать индексатор документов:', err.message);
+async function initializeDocumentIndex() {
+  try {
+    const indexer = await getDocumentIndexer();
+    
+    // Проверяем, нужно ли индексировать README и docs
+    const stats = indexer.getStats();
+    const documents = indexer.index.getAllDocuments();
+    
+    // Проверяем, есть ли уже README и docs в индексе
+    const hasReadme = documents.some(doc => doc.fileName === 'README.md');
+    const hasDocs = documents.some(doc => doc.filePath && doc.filePath.includes('docs/'));
+    
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const { dirname } = await import('path');
+    const fs = await import('fs/promises');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const projectRoot = path.resolve(__dirname, '..');
+    
+    // Индексируем README.md, если его нет
+    if (!hasReadme) {
+      try {
+        const readmePath = path.join(projectRoot, 'README.md');
+        await fs.access(readmePath);
+        console.log('[Document Index] Индексация README.md...');
+        await indexer.indexFile(readmePath, (progress) => {
+          if (progress.stage === 'embedding' && progress.progress !== undefined) {
+            process.stdout.write(`\r${progress.message}... `);
+          } else {
+            console.log(progress.message);
+          }
+        });
+        console.log('✅ README.md проиндексирован\n');
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.warn('[Document Index] Ошибка при индексации README.md:', error.message);
+        }
+      }
+    }
+    
+    // Индексируем папку docs, если её нет
+    if (!hasDocs) {
+      try {
+        const docsPath = path.join(projectRoot, 'docs');
+        await fs.access(docsPath);
+        const docsStats = await fs.stat(docsPath);
+        if (docsStats.isDirectory()) {
+          console.log('[Document Index] Индексация папки docs...');
+          await indexer.indexDirectory(docsPath, ['.git', 'node_modules'], (progress) => {
+            if (progress.stage === 'embedding' && progress.progress !== undefined) {
+              process.stdout.write(`\r${progress.message}... `);
+            } else {
+              console.log(progress.message);
+            }
+          });
+          console.log('✅ Папка docs проиндексирована\n');
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          console.warn('[Document Index] Ошибка при индексации папки docs:', error.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Не удалось инициализировать индексатор документов:', err.message);
+  }
+}
+
+// Инициализируем индекс при запуске
+initializeDocumentIndex().catch(err => {
+  console.warn('Не удалось инициализировать индекс документов:', err.message);
 });
 
 // Проверка доступности API эмбеддингов

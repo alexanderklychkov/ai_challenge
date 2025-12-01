@@ -221,7 +221,11 @@ export const getMarkdownComponents = (
         </ul>
       );
     },
-    ol: ({ children }) => <ol className={`list-decimal list-inside mb-3 space-y-1 ml-2 ${isDark ? 'text-white/95' : 'text-[#e0e0e8]'}`}>{children}</ol>,
+    ol: ({ children }) => (
+      <ol className={`list-decimal list-outside mb-3 space-y-1 ml-6 pl-2 ${isDark ? 'text-white/95' : 'text-[#e0e0e8]'}`} style={{ counterReset: 'list-counter' }}>
+        {children}
+      </ol>
+    ),
     li: ({ children }) => {
       // Проверяем, является ли элемент списка элементом источника
       const childrenArray = Array.isArray(children) ? children : [children];
@@ -256,8 +260,8 @@ export const getMarkdownComponents = (
         <li className={`${
           isSourceItem 
             ? 'pl-0 flex items-center gap-3 text-sm py-2 px-3 rounded-lg bg-[#1e1e2e]/50 hover:bg-[#1e1e2e]/70 transition-colors border border-[#2a2a3a]/50' 
-            : 'pl-1'
-        }`}>
+            : 'pl-0'
+        }`} style={!isSourceItem ? { display: 'list-item' } : undefined}>
           {isSourceItem && (
             <span className="text-[#00f0ff] text-base flex-shrink-0">📄</span>
           )}

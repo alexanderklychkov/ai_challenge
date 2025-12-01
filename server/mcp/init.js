@@ -7,6 +7,7 @@ import { registerMCPServer } from './orchestrator.js';
 import { initializeTodoistMCP, getTodoistMCPTools, callTodoistMCPTool } from './servers/todoistMCP.js';
 import { initializeArticleMCP, getArticleMCPTools, callArticleMCPTool } from './servers/articleMCP.js';
 import { initializeLearningMCP, getLearningMCPTools, callLearningMCPTool } from './servers/learningMCP.js';
+import { initializeGitHubMCP, getGitHubMCPTools, callGitHubMCPTool } from './servers/githubMCP.js';
 
 /**
  * Инициализирует и регистрирует все доступные MCP серверы
@@ -20,6 +21,9 @@ export function initializeAllMCPServers() {
   
   // Регистрируем Learning MCP сервер
   initializeLearningMCP(); // Это автоматически зарегистрирует сервер в оркестраторе
+  
+  // Регистрируем GitHub MCP сервер
+  initializeGitHubMCP(); // Это автоматически зарегистрирует сервер в оркестраторе
   
   // Здесь можно добавить регистрацию других серверов
   // Например, внешние MCP серверы через HTTP или другие протоколы
