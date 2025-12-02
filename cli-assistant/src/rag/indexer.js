@@ -13,7 +13,10 @@ import fs from 'fs/promises';
 export class DocumentIndexer {
   constructor(config = {}) {
     this.index = new DocumentIndex(config.indexPath);
-    this.embeddingGenerator = new EmbeddingGenerator(config.embeddingConfig || {});
+    this.skipEmbeddings = config.embeddingConfig?.skipEmbeddings === true;
+    if (!this.skipEmbeddings) {
+      this.embeddingGenerator = new EmbeddingGenerator(config.embeddingConfig || {});
+    }
     this.chunkOptions = config.chunkOptions || {
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -40,30 +43,40 @@ export class DocumentIndexer {
         throw new Error('Не удалось создать чанки из документа');
       }
 
-      if (onProgress) {
-        onProgress({ 
-          stage: 'embedding', 
-          message: `Генерация эмбеддингов для ${chunks.length} чанков...`,
-          progress: 0,
-          total: chunks.length,
-        });
-      }
-
-      const texts = chunks.map(chunk => chunk.text);
-      const embeddings = await this.embeddingGenerator.generateEmbeddings(
-        texts,
-        10,
-        (current, total) => {
-          if (onProgress) {
-            onProgress({
-              stage: 'embedding',
-              message: `Генерация эмбеддингов: ${current}/${total}`,
-              progress: current,
-              total,
-            });
-          }
+      let embeddings = [];
+      
+      if (!this.skipEmbeddings) {
+        if (onProgress) {
+          onProgress({ 
+            stage: 'embedding', 
+            message: `Генерация эмбеддингов для ${chunks.length} чанков...`,
+            progress: 0,
+            total: chunks.length,
+          });
         }
-      );
+
+        const texts = chunks.map(chunk => chunk.text);
+        try {
+          embeddings = await this.embeddingGenerator.generateEmbeddings(
+            texts,
+            10,
+            (current, total) => {
+              if (onProgress) {
+                onProgress({
+                  stage: 'embedding',
+                  message: `Генерация эмбеддингов: ${current}/${total}`,
+                  progress: current,
+                  total,
+                });
+              }
+            }
+          );
+        } catch (error) {
+          console.warn('Не удалось сгенерировать эмбеддинги, используем текстовый поиск:', error.message);
+          this.skipEmbeddings = true;
+          embeddings = [];
+        }
+      }
 
       if (embeddings.length > 0) {
         this.index.setEmbeddingModel(
@@ -79,7 +92,7 @@ export class DocumentIndexer {
           {
             text: chunk.text,
             metadata: chunk.metadata,
-            embedding: embeddings[index],
+            embedding: embeddings[index] || null, // null если эмбеддинги не используются
           },
           documentId
         );
@@ -189,12 +202,85 @@ export class DocumentIndexer {
   }
 
   async search(query, topK = 5, minScore = 0.5) {
-    const queryEmbedding = await this.embeddingGenerator.generateEmbedding(query);
-    const results = this.index.searchSimilar(queryEmbedding, topK, minScore);
+    // Если эмбеддинги пропущены или недоступны, используем текстовый поиск
+    if (this.skipEmbeddings || !this.embeddingGenerator) {
+      return this.textSearch(query, topK);
+    }
 
-    return results.map(result => ({
+    try {
+      const queryEmbedding = await this.embeddingGenerator.generateEmbedding(query);
+      const results = this.index.searchSimilar(queryEmbedding, topK, minScore);
+
+      return results.map(result => ({
+        ...result,
+        document: this.index.getDocument(result.chunk.documentId),
+      }));
+    } catch (error) {
+      // Fallback: простой текстовый поиск если эмбеддинги недоступны
+      console.warn('Эмбеддинги недоступны, используем текстовый поиск:', error.message);
+      this.skipEmbeddings = true; // Помечаем, чтобы не пытаться снова
+      return this.textSearch(query, topK);
+    }
+  }
+
+  /**
+   * Простой текстовый поиск без эмбеддингов
+   * Использует поиск по ключевым словам и фразам
+   */
+  textSearch(query, topK = 5) {
+    const queryLower = query.toLowerCase().trim();
+    if (!queryLower) {
+      return [];
+    }
+
+    // Извлекаем слова (длина > 2) и фразы
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+    const queryPhrase = queryLower; // Полная фраза для точного совпадения
+    
+    if (queryWords.length === 0) {
+      // Если нет слов длиннее 2 символов, используем всю фразу
+      queryWords.push(queryLower);
+    }
+
+    const scoredChunks = [];
+    const documents = this.index.getAllDocuments();
+    const chunks = this.index.getAllChunks();
+
+    for (const chunk of chunks) {
+      const chunkText = chunk.text.toLowerCase();
+      let score = 0;
+      
+      // Бонус за точное совпадение фразы
+      if (chunkText.includes(queryPhrase)) {
+        score += 2.0;
+      }
+      
+      // Подсчитываем совпадения слов
+      for (const word of queryWords) {
+        const regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        const matches = (chunkText.match(regex) || []).length;
+        score += matches * 0.5; // Вес для каждого совпадения
+      }
+
+      // Нормализуем score
+      const maxPossibleScore = 2.0 + (queryWords.length * 0.5);
+      score = Math.min(score / maxPossibleScore, 1.0);
+
+      if (score > 0) {
+        scoredChunks.push({
+          chunk,
+          score,
+          document: documents.find(d => d.id === chunk.documentId),
+        });
+      }
+    }
+
+    // Сортируем по score и берем topK
+    scoredChunks.sort((a, b) => b.score - a.score);
+    
+    return scoredChunks.slice(0, topK).map(result => ({
       ...result,
-      document: this.index.getDocument(result.chunk.documentId),
+      document: result.document || this.index.getDocument(result.chunk.documentId),
     }));
   }
 }

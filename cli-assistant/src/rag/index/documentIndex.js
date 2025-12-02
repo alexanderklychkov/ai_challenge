@@ -118,6 +118,14 @@ export class DocumentIndex {
     return this.index.documents.find(doc => doc.id === documentId) || null;
   }
 
+  getAllDocuments() {
+    return this.index.documents || [];
+  }
+
+  getAllChunks() {
+    return this.index.chunks || [];
+  }
+
   generateId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }

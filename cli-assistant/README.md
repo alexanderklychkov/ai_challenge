@@ -29,10 +29,27 @@ OPENAI_API_KEY=your_openai_api_key
 YANDEX_API_KEY=your_yandex_api_key
 YANDEX_FOLDER_ID=your_yandex_folder_id
 
-# Для эмбеддингов (опционально, по умолчанию используется LM Studio)
+# Для эмбеддингов (обязательно для работы RAG)
+# Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
+
+# Вариант 1: Кастомный OpenAI-совместимый API (наивысший приоритет)
+CUSTOM_EMBEDDING_URL=https://your-api.com/v1/embeddings
+CUSTOM_EMBEDDING_API_KEY=your_api_key  # опционально
+
+# Вариант 2: Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
+HUGGINGFACE_API_KEY=your_huggingface_token
+HUGGINGFACE_EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5  # опционально, по умолчанию nomic-ai/nomic-embed-text-v1.5
+
+# Вариант 3: Локальный LM Studio (для локальной разработки)
 LM_STUDIO_URL=http://localhost:1234/v1/embeddings
 LM_STUDIO_API_KEY=lm-studio
 LM_STUDIO_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
+
+# Вариант 4: DeepSeek embeddings (может не работать)
+DEEPSEEK_EMBEDDING_MODEL=deepseek-embedding  # опционально
+
+# Вариант 5: OpenAI embeddings (может быть недоступен в некоторых странах)
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # опционально
 ```
 
 ## Использование

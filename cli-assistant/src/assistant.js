@@ -35,13 +35,58 @@ export class Assistant {
     }
 
     // Инициализируем RAG
-    this.indexer = new DocumentIndexer({
-      indexPath: this.indexPath,
-      embeddingConfig: {
-        apiUrl: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1/embeddings',
+    // Определяем конфигурацию эмбеддингов: приоритет CUSTOM > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI
+    // Если USE_TEXT_SEARCH=true, пропускаем эмбеддинги и используем только текстовый поиск
+    let embeddingConfig = {};
+    if (process.env.USE_TEXT_SEARCH === 'true') {
+      // Принудительно используем только текстовый поиск
+      embeddingConfig = {
+        skipEmbeddings: true,
+      };
+    } else if (process.env.CUSTOM_EMBEDDING_URL) {
+      // Используем кастомный OpenAI-совместимый API (наивысший приоритет)
+      embeddingConfig = {
+        apiUrl: process.env.CUSTOM_EMBEDDING_URL,
+        apiKey: process.env.CUSTOM_EMBEDDING_API_KEY || '',
+        model: process.env.CUSTOM_EMBEDDING_MODEL || 'text-embedding-ada-002',
+      };
+    } else if (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) {
+      // Используем Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
+      // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
+      const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
+      embeddingConfig = {
+        apiUrl: `https://api-inference.huggingface.co/pipeline/feature-extraction/${defaultModel}`,
+        apiKey: process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN,
+        model: defaultModel,
+      };
+    } else if (process.env.LM_STUDIO_URL) {
+      // Используем LM Studio или другой локальный сервис
+      embeddingConfig = {
+        apiUrl: process.env.LM_STUDIO_URL,
         apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
         model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
-      },
+      };
+    } else if (process.env.DEEPSEEK_API_KEY) {
+      // Пытаемся использовать DeepSeek embeddings (может не работать)
+      embeddingConfig = {
+        apiUrl: process.env.DEEPSEEK_EMBEDDING_URL || 'https://api.deepseek.com/v1/embeddings',
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        model: process.env.DEEPSEEK_EMBEDDING_MODEL || 'deepseek-embedding',
+      };
+    } else if (process.env.OPENAI_API_KEY) {
+      // Пытаемся использовать OpenAI embeddings (может быть недоступен)
+      embeddingConfig = {
+        apiUrl: process.env.OPENAI_EMBEDDING_URL || 'https://api.openai.com/v1/embeddings',
+        apiKey: process.env.OPENAI_API_KEY,
+        model: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+      };
+    } else {
+      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
+    }
+
+    this.indexer = new DocumentIndexer({
+      indexPath: this.indexPath,
+      embeddingConfig,
       chunkOptions: {
         chunkSize: 1000,
         chunkOverlap: 200,

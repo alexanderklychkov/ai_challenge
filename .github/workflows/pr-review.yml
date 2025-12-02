@@ -36,9 +36,16 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
           YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          CUSTOM_EMBEDDING_URL: ${{ secrets.CUSTOM_EMBEDDING_URL }}
+          CUSTOM_EMBEDDING_API_KEY: ${{ secrets.CUSTOM_EMBEDDING_API_KEY }}
+          CUSTOM_EMBEDDING_MODEL: ${{ secrets.CUSTOM_EMBEDDING_MODEL }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HUGGINGFACE_EMBEDDING_MODEL: ${{ secrets.HUGGINGFACE_EMBEDDING_MODEL }}
           LM_STUDIO_URL: ${{ secrets.LM_STUDIO_URL }}
           LM_STUDIO_API_KEY: ${{ secrets.LM_STUDIO_API_KEY }}
           LM_STUDIO_EMBEDDING_MODEL: ${{ secrets.LM_STUDIO_EMBEDDING_MODEL }}
+          USE_TEXT_SEARCH: ${{ secrets.USE_TEXT_SEARCH }}
         run: |
           node index.js index -d ../docs || echo "Индексация документации пропущена (документация может отсутствовать)"
 
@@ -51,9 +58,16 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
           YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          CUSTOM_EMBEDDING_URL: ${{ secrets.CUSTOM_EMBEDDING_URL }}
+          CUSTOM_EMBEDDING_API_KEY: ${{ secrets.CUSTOM_EMBEDDING_API_KEY }}
+          CUSTOM_EMBEDDING_MODEL: ${{ secrets.CUSTOM_EMBEDDING_MODEL }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HUGGINGFACE_EMBEDDING_MODEL: ${{ secrets.HUGGINGFACE_EMBEDDING_MODEL }}
           LM_STUDIO_URL: ${{ secrets.LM_STUDIO_URL }}
           LM_STUDIO_API_KEY: ${{ secrets.LM_STUDIO_API_KEY }}
           LM_STUDIO_EMBEDDING_MODEL: ${{ secrets.LM_STUDIO_EMBEDDING_MODEL }}
+          USE_TEXT_SEARCH: ${{ secrets.USE_TEXT_SEARCH }}
         run: |
           # Запускаем ревью и сохраняем JSON в файл
           # Сообщения от chalk уже не выводятся в stdout при формате json

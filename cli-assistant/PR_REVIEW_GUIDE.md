@@ -31,10 +31,29 @@ OPENAI_API_KEY=your_openai_api_key
 YANDEX_API_KEY=your_yandex_api_key
 YANDEX_FOLDER_ID=your_yandex_folder_id
 
-# Для эмбеддингов (опционально, по умолчанию используется LM Studio)
+# Для эмбеддингов (обязательно для работы RAG)
+# Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
+
+# Вариант 1: Кастомный OpenAI-совместимый API (наивысший приоритет)
+CUSTOM_EMBEDDING_URL=https://your-api.com/v1/embeddings
+CUSTOM_EMBEDDING_API_KEY=your_api_key  # опционально
+CUSTOM_EMBEDDING_MODEL=text-embedding-ada-002  # опционально
+
+# Вариант 2: Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
+HUGGINGFACE_API_KEY=your_huggingface_token
+HUGGINGFACE_EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5  # опционально, по умолчанию nomic-ai/nomic-embed-text-v1.5
+# Популярные модели: nomic-ai/nomic-embed-text-v1.5, sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base
+
+# Вариант 3: Локальный LM Studio (для локальной разработки)
 LM_STUDIO_URL=http://localhost:1234/v1/embeddings
 LM_STUDIO_API_KEY=lm-studio
 LM_STUDIO_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
+
+# Вариант 4: DeepSeek embeddings (может не работать)
+DEEPSEEK_EMBEDDING_MODEL=deepseek-embedding  # опционально
+
+# Вариант 5: OpenAI embeddings (может быть недоступен в некоторых странах)
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # опционально
 
 # GitHub Token для доступа к PR (обязательно для CI)
 GITHUB_TOKEN=your_github_token
@@ -47,7 +66,21 @@ GITHUB_TOKEN=your_github_token
 - `GITHUB_TOKEN` - автоматически предоставляется GitHub Actions (можно использовать `secrets.GITHUB_TOKEN`)
 - `DEEPSEEK_API_KEY` или `OPENAI_API_KEY` или `YANDEX_API_KEY` - ключ для LLM провайдера
 - `YANDEX_FOLDER_ID` - если используете YandexGPT
-- `LM_STUDIO_URL`, `LM_STUDIO_API_KEY`, `LM_STUDIO_EMBEDDING_MODEL` - если используете локальный LM Studio
+
+**Для эмбеддингов (обязательно):**
+- `CUSTOM_EMBEDDING_URL` - URL кастомного OpenAI-совместимого API (наивысший приоритет)
+- `CUSTOM_EMBEDDING_API_KEY` - ключ для кастомного API (опционально)
+- `HUGGINGFACE_API_KEY` - токен Hugging Face (рекомендуется если OpenAI/DeepSeek недоступны)
+- `HUGGINGFACE_EMBEDDING_MODEL` - модель Hugging Face (по умолчанию `nomic-ai/nomic-embed-text-v1.5`)
+- `LM_STUDIO_URL`, `LM_STUDIO_API_KEY`, `LM_STUDIO_EMBEDDING_MODEL` - для локального LM Studio
+- `DEEPSEEK_EMBEDDING_MODEL` - модель для DeepSeek embeddings (опционально)
+- `OPENAI_EMBEDDING_MODEL` - модель для OpenAI embeddings (опционально)
+
+**Важно:** 
+- Приоритет выбора провайдера эмбеддингов: **CUSTOM > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI**
+- **Рекомендация:** Используйте `HUGGINGFACE_API_KEY` если OpenAI/DeepSeek недоступны в вашей стране
+- Получить токен Hugging Face: https://huggingface.co/settings/tokens
+- Популярные модели Hugging Face: `sentence-transformers/all-MiniLM-L6-v2`, `intfloat/multilingual-e5-base`
 
 ### 4. Индексация документации
 
@@ -131,6 +164,18 @@ node index.js review 42 --output json
 ### Ошибка при индексации документации
 
 Если документация отсутствует, workflow продолжит работу, но RAG будет использовать только код из PR.
+
+### Ошибка "Не удалось подключиться к [сервису эмбеддингов]"
+
+Если эмбеддинги недоступны (например, DeepSeek/OpenAI API недоступны или заблокированы), система автоматически переключится на текстовый поиск. Это означает:
+
+- ✅ Ревью будет работать, но с менее точным поиском релевантных фрагментов
+- ✅ Текстовый поиск использует поиск по ключевым словам и фразам
+
+**Решение:** 
+1. Установите `USE_TEXT_SEARCH=true` в GitHub Secrets для принудительного использования текстового поиска
+2. Или используйте локальный LM Studio, если он доступен
+3. Система автоматически переключится на текстовый поиск при ошибках эмбеддингов
 
 ### Ревью не публикуется в комментариях
 
