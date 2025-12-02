@@ -39,10 +39,14 @@ CUSTOM_EMBEDDING_URL=https://your-api.com/v1/embeddings
 CUSTOM_EMBEDDING_API_KEY=your_api_key  # опционально
 CUSTOM_EMBEDDING_MODEL=text-embedding-ada-002  # опционально
 
-# Вариант 2: Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
+# Вариант 2: Hugging Face Inference Providers API (рекомендуется если OpenAI/DeepSeek недоступны)
+# Документация: https://huggingface.co/docs/inference-providers/index
 HUGGINGFACE_API_KEY=your_huggingface_token
+# или используйте HF_TOKEN (эквивалентно)
+HF_TOKEN=your_huggingface_token
 HUGGINGFACE_EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5  # опционально, по умолчанию nomic-ai/nomic-embed-text-v1.5
 # Популярные модели: nomic-ai/nomic-embed-text-v1.5, sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base
+# Получить токен: https://huggingface.co/settings/tokens
 
 # Вариант 3: Локальный LM Studio (для локальной разработки)
 LM_STUDIO_URL=http://localhost:1234/v1/embeddings

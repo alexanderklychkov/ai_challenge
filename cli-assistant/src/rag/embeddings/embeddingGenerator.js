@@ -4,6 +4,8 @@
  * Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
  */
 
+import { HfInference } from '@huggingface/inference';
+
 export class EmbeddingGenerator {
   constructor(config = {}) {
     // Определяем провайдера по переменным окружения
@@ -17,15 +19,22 @@ export class EmbeddingGenerator {
       this.model = config.model || process.env.CUSTOM_EMBEDDING_MODEL || 'text-embedding-ada-002';
       this.dimension = config.dimension || 1536;
     } else if (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) {
-      // Используем Hugging Face Inference API (новый router endpoint)
-      // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
+      // Используем Hugging Face Inference Providers API
+      // Документация: https://huggingface.co/docs/inference-providers/index
       this.provider = 'huggingface';
-      const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
-      // Используем новый router endpoint вместо старого api-inference
-      this.apiUrl = config.apiUrl || `https://router.huggingface.co/pipeline/feature-extraction/${defaultModel}`;
-      this.apiKey = config.apiKey || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
-      this.model = config.model || defaultModel;
+      const apiKey = config.apiKey || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
+      const defaultModel = config.model || process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
+      
+      // Инициализируем InferenceClient из @huggingface/inference
+      // Согласно документации: https://huggingface.co/docs/inference-providers/index
+      this.hfClient = new HfInference(apiKey);
+      this.model = defaultModel;
       this.dimension = config.dimension || 768;
+      
+      // Опционально можно указать провайдера явно
+      // Например: "hf-inference", "nebius", "sambanova" и т.д.
+      // Если не указан, используется "auto" (автоматический выбор)
+      this.hfProvider = config.provider || process.env.HUGGINGFACE_PROVIDER || 'auto';
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
       this.provider = 'lm-studio';
@@ -58,33 +67,66 @@ export class EmbeddingGenerator {
     }
 
     try {
+      // Используем Hugging Face InferenceClient для feature extraction
+      if (this.provider === 'huggingface') {
+        try {
+          // Используем featureExtraction метод из InferenceClient
+          // Согласно документации: https://huggingface.co/docs/inference-providers/index
+          const params = {
+            model: this.model,
+            inputs: text,
+          };
+          
+          // Опционально можно указать провайдера явно (если не 'auto')
+          if (this.hfProvider && this.hfProvider !== 'auto') {
+            params.provider = this.hfProvider;
+          }
+          
+          const result = await this.hfClient.featureExtraction(params);
+
+          // Результат может быть массивом чисел (для одного текста) или массивом массивов (для батча)
+          if (Array.isArray(result)) {
+            // Если это массив массивов (batch response), берем первый элемент
+            if (result.length > 0 && Array.isArray(result[0])) {
+              return result[0];
+            }
+            // Если это массив чисел (single response)
+            if (result.length > 0 && typeof result[0] === 'number') {
+              return result;
+            }
+          }
+
+          throw new Error('Неожиданный формат ответа от Hugging Face API');
+        } catch (error) {
+          // Улучшаем сообщения об ошибках
+          if (error.message?.includes('503') || error.message?.includes('loading')) {
+            throw new Error('Модель загружается. Попробуйте повторить запрос через несколько секунд.');
+          }
+          if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+            throw new Error('Неверный токен Hugging Face. Проверьте HUGGINGFACE_API_KEY или HF_TOKEN.');
+          }
+          if (error.message?.includes('404') || error.message?.includes('not found')) {
+            throw new Error(`Модель ${this.model} не найдена. Проверьте название модели.`);
+          }
+          throw error;
+        }
+      }
+
+      // Для остальных провайдеров используем старую логику
       const headers = {
         'Content-Type': 'application/json',
       };
 
-      // Добавляем Authorization в зависимости от провайдера
-      if (this.provider === 'huggingface') {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-      } else if (this.provider === 'deepseek' || this.provider === 'openai' || this.provider === 'custom') {
+      if (this.provider === 'deepseek' || this.provider === 'openai' || this.provider === 'custom') {
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       } else if (this.apiKey && this.apiKey !== 'lm-studio') {
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
 
-      let requestBody;
-      
-      // Hugging Face использует другой формат
-      if (this.provider === 'huggingface') {
-        requestBody = JSON.stringify({
-          inputs: text,
-        });
-      } else {
-        // OpenAI-совместимый формат
-        requestBody = JSON.stringify({
-          model: this.model,
-          input: text,
-        });
-      }
+      const requestBody = JSON.stringify({
+        model: this.model,
+        input: text,
+      });
 
       const response = await fetch(this.apiUrl, {
         method: 'POST',
@@ -98,17 +140,6 @@ export class EmbeddingGenerator {
       }
 
       const data = await response.json();
-      
-      // Hugging Face возвращает массив напрямую
-      if (this.provider === 'huggingface') {
-        if (Array.isArray(data) && Array.isArray(data[0])) {
-          // Если массив массивов, берем первый
-          return data[0];
-        }
-        if (Array.isArray(data)) {
-          return data;
-        }
-      }
       
       // OpenAI-совместимый формат
       if (data.data && Array.isArray(data.data) && data.data.length > 0) {
@@ -137,8 +168,9 @@ export class EmbeddingGenerator {
           'lm-studio': 'LM Studio'
         };
         const serviceName = serviceNames[this.provider] || 'сервису эмбеддингов';
+        const url = this.provider === 'huggingface' ? 'Hugging Face Inference Providers' : this.apiUrl;
         throw new Error(
-          `Не удалось подключиться к ${serviceName}. Убедитесь, что сервис доступен по адресу ${this.apiUrl}`
+          `Не удалось подключиться к ${serviceName}. ${this.provider === 'huggingface' ? 'Проверьте токен и доступность сервиса.' : `Убедитесь, что сервис доступен по адресу ${url}`}`
         );
       }
       throw error;
@@ -177,33 +209,66 @@ export class EmbeddingGenerator {
 
   async generateBatchEmbeddings(texts) {
     try {
+      // Используем Hugging Face InferenceClient для feature extraction
+      if (this.provider === 'huggingface') {
+        try {
+          // Используем featureExtraction метод из InferenceClient для батча
+          // Согласно документации: https://huggingface.co/docs/inference-providers/index
+          const params = {
+            model: this.model,
+            inputs: texts, // Передаем массив текстов
+          };
+          
+          // Опционально можно указать провайдера явно (если не 'auto')
+          if (this.hfProvider && this.hfProvider !== 'auto') {
+            params.provider = this.hfProvider;
+          }
+          
+          const result = await this.hfClient.featureExtraction(params);
+
+          // Результат должен быть массивом массивов для батча
+          if (Array.isArray(result)) {
+            // Если это массив массивов (batch response)
+            if (result.length > 0 && Array.isArray(result[0])) {
+              return result;
+            }
+            // Если это один массив (single response), оборачиваем в массив
+            if (result.length > 0 && typeof result[0] === 'number') {
+              return [result];
+            }
+          }
+
+          throw new Error('Неожиданный формат ответа от Hugging Face API');
+        } catch (error) {
+          // Улучшаем сообщения об ошибках
+          if (error.message?.includes('503') || error.message?.includes('loading')) {
+            throw new Error('Модель загружается. Попробуйте повторить запрос через несколько секунд.');
+          }
+          if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+            throw new Error('Неверный токен Hugging Face. Проверьте HUGGINGFACE_API_KEY или HF_TOKEN.');
+          }
+          if (error.message?.includes('404') || error.message?.includes('not found')) {
+            throw new Error(`Модель ${this.model} не найдена. Проверьте название модели.`);
+          }
+          throw error;
+        }
+      }
+
+      // Для остальных провайдеров используем старую логику
       const headers = {
         'Content-Type': 'application/json',
       };
 
-      // Добавляем Authorization в зависимости от провайдера
-      if (this.provider === 'huggingface') {
-        headers['Authorization'] = `Bearer ${this.apiKey}`;
-      } else if (this.provider === 'deepseek' || this.provider === 'openai' || this.provider === 'custom') {
+      if (this.provider === 'deepseek' || this.provider === 'openai' || this.provider === 'custom') {
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       } else if (this.apiKey && this.apiKey !== 'lm-studio') {
         headers['Authorization'] = `Bearer ${this.apiKey}`;
       }
 
-      let requestBody;
-      
-      // Hugging Face использует другой формат
-      if (this.provider === 'huggingface') {
-        requestBody = JSON.stringify({
-          inputs: texts,
-        });
-      } else {
-        // OpenAI-совместимый формат
-        requestBody = JSON.stringify({
-          model: this.model,
-          input: texts,
-        });
-      }
+      const requestBody = JSON.stringify({
+        model: this.model,
+        input: texts,
+      });
 
       const response = await fetch(this.apiUrl, {
         method: 'POST',
@@ -217,16 +282,6 @@ export class EmbeddingGenerator {
       }
 
       const data = await response.json();
-      
-      // Hugging Face возвращает массив массивов напрямую
-      if (this.provider === 'huggingface') {
-        if (Array.isArray(data) && Array.isArray(data[0])) {
-          return data;
-        }
-        if (Array.isArray(data)) {
-          return [data]; // Обертываем в массив если один элемент
-        }
-      }
       
       // OpenAI-совместимый формат
       if (data.data && Array.isArray(data.data)) {
@@ -248,8 +303,9 @@ export class EmbeddingGenerator {
           'lm-studio': 'LM Studio'
         };
         const serviceName = serviceNames[this.provider] || 'сервису эмбеддингов';
+        const url = this.provider === 'huggingface' ? 'Hugging Face Inference Providers' : this.apiUrl;
         throw new Error(
-          `Не удалось подключиться к ${serviceName}. Убедитесь, что сервис доступен по адресу ${this.apiUrl}`
+          `Не удалось подключиться к ${serviceName}. ${this.provider === 'huggingface' ? 'Проверьте токен и доступность сервиса.' : `Убедитесь, что сервис доступен по адресу ${url}`}`
         );
       }
       throw error;

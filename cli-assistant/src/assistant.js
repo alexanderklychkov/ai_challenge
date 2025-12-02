@@ -51,14 +51,15 @@ export class Assistant {
         model: process.env.CUSTOM_EMBEDDING_MODEL || 'text-embedding-ada-002',
       };
     } else if (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) {
-      // Используем Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
+      // Используем Hugging Face Inference Providers API
       // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
+      // Документация: https://huggingface.co/docs/inference-providers/index
+      // Используем InferenceClient из @huggingface/inference (не требует apiUrl)
       const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
-      // Используем новый router endpoint вместо старого api-inference
       embeddingConfig = {
-        apiUrl: `https://router.huggingface.co/pipeline/feature-extraction/${defaultModel}`,
         apiKey: process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN,
         model: defaultModel,
+        provider: process.env.HUGGINGFACE_PROVIDER || 'auto', // Опционально: 'hf-inference', 'nebius', 'sambanova' и т.д.
       };
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
