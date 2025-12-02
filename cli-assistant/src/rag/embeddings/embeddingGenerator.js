@@ -17,11 +17,12 @@ export class EmbeddingGenerator {
       this.model = config.model || process.env.CUSTOM_EMBEDDING_MODEL || 'text-embedding-ada-002';
       this.dimension = config.dimension || 1536;
     } else if (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) {
-      // Используем Hugging Face Inference API
+      // Используем Hugging Face Inference API (новый router endpoint)
       // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
       this.provider = 'huggingface';
       const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
-      this.apiUrl = config.apiUrl || `https://api-inference.huggingface.co/pipeline/feature-extraction/${defaultModel}`;
+      // Используем новый router endpoint вместо старого api-inference
+      this.apiUrl = config.apiUrl || `https://router.huggingface.co/pipeline/feature-extraction/${defaultModel}`;
       this.apiKey = config.apiKey || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
       this.model = config.model || defaultModel;
       this.dimension = config.dimension || 768;

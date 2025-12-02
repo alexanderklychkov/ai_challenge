@@ -54,8 +54,9 @@ export class Assistant {
       // Используем Hugging Face Inference API (рекомендуется если OpenAI/DeepSeek недоступны)
       // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
       const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
+      // Используем новый router endpoint вместо старого api-inference
       embeddingConfig = {
-        apiUrl: `https://api-inference.huggingface.co/pipeline/feature-extraction/${defaultModel}`,
+        apiUrl: `https://router.huggingface.co/pipeline/feature-extraction/${defaultModel}`,
         apiKey: process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN,
         model: defaultModel,
       };
