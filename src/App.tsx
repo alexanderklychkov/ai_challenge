@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import ChatList from './components/ChatList.tsx';
 import { LearningList } from './components/LearningList.tsx';
@@ -14,6 +14,28 @@ function App() {
   const isChatRoute = location.pathname.startsWith('/chat');
   const isLearningRoute = location.pathname.startsWith('/learning');
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const testFunction = useCallback(() => {
+    const unusedVar = 'не используется';
+    const data = { items: [1, 2, 3] };
+    
+    const firstItem = data.items[0].value;
+    
+    setTimeout(() => {
+      console.log('Тест:', firstItem);
+    }, 1000);
+    
+    const result = [];
+    for (let i = 0; i < 100; i++) {
+      result.push(i * 2);
+    }
+    
+    return result;
+  }, []);
+  
+  useEffect(() => {
+    testFunction();
+  }, []);
 
   const handleChatListRefresh = useCallback(() => {
     // Debounce обновления списка чатов
