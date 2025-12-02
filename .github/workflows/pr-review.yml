@@ -12,7 +12,37 @@ jobs:
       pull-requests: write
       issues: read
     
+    # Поднимаем Ollama для локальных эмбеддингов
+    services:
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
+        options: >-
+          --health-cmd "curl -f http://localhost:11434/api/tags || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Получаем всю историю для работы с git
+
+      - name: Setup Ollama and pull embedding model
+        run: |
+          # Ждем, пока Ollama сервис будет готов
+          echo "Ожидание готовности Ollama сервиса..."
+          timeout 60 bash -c 'until curl -f http://localhost:11434/api/tags; do sleep 2; done' || true
+          
+          # Загружаем модель для эмбеддингов через HTTP API
+          echo "Загрузка модели для эмбеддингов..."
+          curl -X POST http://localhost:11434/api/pull -d '{"name": "nomic-embed-text"}' || echo "Модель уже загружена или произошла ошибка"
+          
+          # Проверяем, что модель доступна
+          echo "Проверка доступных моделей..."
+          curl -f http://localhost:11434/api/tags || echo "Не удалось получить список моделей"
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -32,6 +62,10 @@ jobs:
       - name: Index documentation
         working-directory: ./cli-assistant
         env:
+          # Используем Ollama для локальных эмбеддингов (приоритет выше других провайдеров)
+          OLLAMA_URL: http://localhost:11434
+          OLLAMA_EMBEDDING_MODEL: ${{ secrets.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text' }}
+          # Альтернативные провайдеры (используются, если OLLAMA_URL не установлен)
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
@@ -54,6 +88,10 @@ jobs:
         working-directory: ./cli-assistant
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Используем Ollama для локальных эмбеддингов (приоритет выше других провайдеров)
+          OLLAMA_URL: http://localhost:11434
+          OLLAMA_EMBEDDING_MODEL: ${{ secrets.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text' }}
+          # Альтернативные провайдеры (используются, если OLLAMA_URL не установлен)
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}

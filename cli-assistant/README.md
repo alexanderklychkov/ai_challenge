@@ -30,13 +30,20 @@ YANDEX_API_KEY=your_yandex_api_key
 YANDEX_FOLDER_ID=your_yandex_folder_id
 
 # Для эмбеддингов (обязательно для работы RAG)
-# Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
+# Приоритет: CUSTOM_EMBEDDING_URL > OLLAMA_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
 
 # Вариант 1: Кастомный OpenAI-совместимый API (наивысший приоритет)
 CUSTOM_EMBEDDING_URL=https://your-api.com/v1/embeddings
 CUSTOM_EMBEDDING_API_KEY=your_api_key  # опционально
 
-# Вариант 2: Hugging Face Inference Providers API (рекомендуется если OpenAI/DeepSeek недоступны)
+# Вариант 2: Ollama (локальная модель, работает в GitHub Actions)
+# Документация: https://habr.com/ru/articles/953598/
+OLLAMA_URL=http://localhost:11434  # или http://ollama:11434 в Docker
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # опционально, по умолчанию nomic-embed-text
+# Популярные модели: nomic-embed-text, all-minilm
+# Для использования в GitHub Actions уже настроено автоматически
+
+# Вариант 3: Hugging Face Inference Providers API (рекомендуется если OpenAI/DeepSeek недоступны)
 # Документация: https://huggingface.co/docs/inference-providers/index
 HUGGINGFACE_API_KEY=your_huggingface_token
 # или используйте HF_TOKEN (эквивалентно)
@@ -46,15 +53,15 @@ HUGGINGFACE_PROVIDER=hf-inference  # опционально, по умолчан
 # Получить токен: https://huggingface.co/settings/tokens
 # Популярные модели: sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base, BAAI/bge-small-en-v1.5
 
-# Вариант 3: Локальный LM Studio (для локальной разработки)
+# Вариант 4: Локальный LM Studio (для локальной разработки)
 LM_STUDIO_URL=http://localhost:1234/v1/embeddings
 LM_STUDIO_API_KEY=lm-studio
 LM_STUDIO_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
 
-# Вариант 4: DeepSeek embeddings (может не работать)
+# Вариант 5: DeepSeek embeddings (может не работать)
 DEEPSEEK_EMBEDDING_MODEL=deepseek-embedding  # опционально
 
-# Вариант 5: OpenAI embeddings (может быть недоступен в некоторых странах)
+# Вариант 6: OpenAI embeddings (может быть недоступен в некоторых странах)
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # опционально
 ```
 

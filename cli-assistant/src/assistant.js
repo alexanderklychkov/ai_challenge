@@ -35,7 +35,7 @@ export class Assistant {
     }
 
     // Инициализируем RAG
-    // Определяем конфигурацию эмбеддингов: приоритет CUSTOM > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI
+    // Определяем конфигурацию эмбеддингов: приоритет CUSTOM > OLLAMA > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI
     // Если USE_TEXT_SEARCH=true, пропускаем эмбеддинги и используем только текстовый поиск
     let embeddingConfig = {};
     if (process.env.USE_TEXT_SEARCH === 'true') {
@@ -62,6 +62,14 @@ export class Assistant {
         model: defaultModel,
         provider: process.env.HUGGINGFACE_PROVIDER || 'hf-inference', // Используем hf-inference для надежности
       };
+    } else if (process.env.OLLAMA_URL || process.env.OLLAMA_API_URL) {
+      // Используем Ollama для локальных эмбеддингов
+      // Документация: https://habr.com/ru/articles/953598/
+      embeddingConfig = {
+        apiUrl: process.env.OLLAMA_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434',
+        apiKey: process.env.OLLAMA_API_KEY || '',
+        model: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text',
+      };
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
       embeddingConfig = {
@@ -84,7 +92,7 @@ export class Assistant {
         model: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
       };
     } else {
-      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
+      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, OLLAMA_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
     }
 
     this.indexer = new DocumentIndexer({

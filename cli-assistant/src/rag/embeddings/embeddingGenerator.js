@@ -1,7 +1,7 @@
 /**
  * Генерирует эмбеддинги через различные провайдеры
- * Поддерживает: Hugging Face, LM Studio, кастомные OpenAI-совместимые API, DeepSeek, OpenAI
- * Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
+ * Поддерживает: Ollama (локально), Hugging Face, LM Studio, кастомные OpenAI-совместимые API, DeepSeek, OpenAI
+ * Приоритет: CUSTOM_EMBEDDING_URL > OLLAMA_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
  */
 
 import { HfInference } from '@huggingface/inference';
@@ -9,7 +9,7 @@ import { HfInference } from '@huggingface/inference';
 export class EmbeddingGenerator {
   constructor(config = {}) {
     // Определяем провайдера по переменным окружения
-    // Приоритет: Кастомный URL > Hugging Face > LM Studio > DeepSeek > OpenAI
+    // Приоритет: Кастомный URL > Ollama > Hugging Face > LM Studio > DeepSeek > OpenAI
     
     if (process.env.CUSTOM_EMBEDDING_URL) {
       // Используем кастомный OpenAI-совместимый API
@@ -38,6 +38,16 @@ export class EmbeddingGenerator {
       // Если не указан, используется "auto" (автоматический выбор)
       // Для надежности можно использовать "hf-inference" явно
       this.hfProvider = config.provider || process.env.HUGGINGFACE_PROVIDER || 'hf-inference';
+    } else if (process.env.OLLAMA_URL || process.env.OLLAMA_API_URL) {
+      // Используем Ollama для локальных эмбеддингов
+      // Документация: https://habr.com/ru/articles/953598/
+      this.provider = 'ollama';
+      this.apiUrl = config.apiUrl || process.env.OLLAMA_URL || process.env.OLLAMA_API_URL || 'http://localhost:11434';
+      this.apiKey = config.apiKey || process.env.OLLAMA_API_KEY || ''; // Ollama обычно не требует ключа для локального использования
+      // Используем модель для эмбеддингов, поддерживаемую Ollama
+      // Популярные модели: nomic-embed-text, all-minilm
+      this.model = config.model || process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text';
+      this.dimension = config.dimension || 768;
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
       this.provider = 'lm-studio';
@@ -60,7 +70,7 @@ export class EmbeddingGenerator {
       this.model = config.model || process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
       this.dimension = config.dimension || 1536;
     } else {
-      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
+      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, OLLAMA_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
     }
   }
 
@@ -125,6 +135,44 @@ export class EmbeddingGenerator {
         }
       }
 
+      // Используем Ollama для локальных эмбеддингов
+      if (this.provider === 'ollama') {
+        try {
+          // Ollama использует формат /api/embeddings
+          const ollamaUrl = `${this.apiUrl.replace(/\/$/, '')}/api/embeddings`;
+          const response = await fetch(ollamaUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: this.model,
+              prompt: text,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Ошибка Ollama API: ${response.status} ${response.statusText}. ${errorText}`);
+          }
+
+          const data = await response.json();
+          
+          // Ollama возвращает embedding напрямую
+          if (Array.isArray(data.embedding)) {
+            return data.embedding;
+          }
+          
+          throw new Error('Неожиданный формат ответа от Ollama API');
+        } catch (error) {
+          const errorMsg = error.message || String(error);
+          if (errorMsg.includes('model') && errorMsg.includes('not found')) {
+            throw new Error(`Модель ${this.model} не найдена в Ollama. Убедитесь, что модель загружена: ollama pull ${this.model}`);
+          }
+          throw error;
+        }
+      }
+
       // Для остальных провайдеров используем старую логику
       const headers = {
         'Content-Type': 'application/json',
@@ -175,6 +223,7 @@ export class EmbeddingGenerator {
       if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
         const serviceNames = {
           'huggingface': 'Hugging Face',
+          'ollama': 'Ollama',
           'custom': 'Кастомный API',
           'deepseek': 'DeepSeek',
           'openai': 'OpenAI',
@@ -222,6 +271,16 @@ export class EmbeddingGenerator {
 
   async generateBatchEmbeddings(texts) {
     try {
+      // Ollama не поддерживает батчи напрямую, обрабатываем по одному
+      if (this.provider === 'ollama') {
+        const embeddings = [];
+        for (const text of texts) {
+          const embedding = await this.generateEmbedding(text);
+          embeddings.push(embedding);
+        }
+        return embeddings;
+      }
+      
       // Используем Hugging Face InferenceClient для feature extraction
       if (this.provider === 'huggingface') {
         try {
@@ -320,6 +379,7 @@ export class EmbeddingGenerator {
       if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
         const serviceNames = {
           'huggingface': 'Hugging Face',
+          'ollama': 'Ollama',
           'custom': 'Кастомный API',
           'deepseek': 'DeepSeek',
           'openai': 'OpenAI',
