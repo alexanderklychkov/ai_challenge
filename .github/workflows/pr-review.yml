@@ -1,0 +1,160 @@
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Получаем всю историю для работы с git
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: cli-assistant/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./cli-assistant
+        run: npm ci
+
+      - name: Index documentation
+        working-directory: ./cli-assistant
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          LM_STUDIO_URL: ${{ secrets.LM_STUDIO_URL }}
+          LM_STUDIO_API_KEY: ${{ secrets.LM_STUDIO_API_KEY }}
+          LM_STUDIO_EMBEDDING_MODEL: ${{ secrets.LM_STUDIO_EMBEDDING_MODEL }}
+        run: |
+          node index.js index -d ../docs || echo "Индексация документации пропущена (документация может отсутствовать)"
+
+      - name: Run PR Review
+        id: review
+        working-directory: ./cli-assistant
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YANDEX_API_KEY: ${{ secrets.YANDEX_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          LM_STUDIO_URL: ${{ secrets.LM_STUDIO_URL }}
+          LM_STUDIO_API_KEY: ${{ secrets.LM_STUDIO_API_KEY }}
+          LM_STUDIO_EMBEDDING_MODEL: ${{ secrets.LM_STUDIO_EMBEDDING_MODEL }}
+        run: |
+          node index.js review ${{ github.event.pull_request.number }} --output json > review_output.json || exit 1
+          cat review_output.json
+
+      - name: Post review as comment
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            try {
+              const reviewFile = path.join('${{ github.workspace }}', 'cli-assistant', 'review_output.json');
+              
+              if (fs.existsSync(reviewFile)) {
+                const reviewData = JSON.parse(fs.readFileSync(reviewFile, 'utf8'));
+                
+                // Формируем комментарий для PR
+                let comment = `## 🤖 Автоматическое ревью PR #${reviewData.prNumber}\n\n`;
+                comment += `**PR:** ${reviewData.prTitle}\n\n`;
+                comment += `📊 Проверено файлов: ${reviewData.metadata.filesReviewed} | Использовано чанков: ${reviewData.metadata.chunksUsed}\n\n`;
+                
+                if (reviewData.review.problems && reviewData.review.problems.length > 0) {
+                  comment += `### 🔍 Найденные проблемы\n\n`;
+                  reviewData.review.problems.forEach((problem, i) => {
+                    comment += `${i + 1}. ${problem}\n`;
+                  });
+                  comment += `\n`;
+                }
+                
+                if (reviewData.review.bugs && reviewData.review.bugs.length > 0) {
+                  comment += `### 🐛 Потенциальные баги\n\n`;
+                  reviewData.review.bugs.forEach((bug, i) => {
+                    comment += `${i + 1}. ${bug}\n`;
+                  });
+                  comment += `\n`;
+                }
+                
+                if (reviewData.review.improvements && reviewData.review.improvements.length > 0) {
+                  comment += `### 💡 Советы по улучшению\n\n`;
+                  reviewData.review.improvements.forEach((improvement, i) => {
+                    comment += `${i + 1}. ${improvement}\n`;
+                  });
+                  comment += `\n`;
+                }
+                
+                if (reviewData.review.positives && reviewData.review.positives.length > 0) {
+                  comment += `### ✅ Положительные моменты\n\n`;
+                  reviewData.review.positives.forEach((positive, i) => {
+                    comment += `${i + 1}. ${positive}\n`;
+                  });
+                  comment += `\n`;
+                }
+                
+                // Если структурированные данные отсутствуют, выводим raw
+                if ((!reviewData.review.problems || reviewData.review.problems.length === 0) &&
+                    (!reviewData.review.bugs || reviewData.review.bugs.length === 0) &&
+                    (!reviewData.review.improvements || reviewData.review.improvements.length === 0)) {
+                  comment += `### 📝 Ревью\n\n`;
+                  comment += reviewData.review.raw;
+                }
+                
+                comment += `\n---\n*Ревью создано автоматически с помощью AI Assistant*`;
+                
+                // Ищем существующий комментарий от бота
+                const prNumber = context.payload.pull_request?.number || context.issue.number;
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                });
+                
+                const botComment = comments.data.find(comment => 
+                  comment.user.type === 'Bot' && 
+                  comment.body.includes('Автоматическое ревью PR')
+                );
+                
+                if (botComment) {
+                  // Обновляем существующий комментарий
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: botComment.id,
+                    body: comment,
+                  });
+                } else {
+                  // Создаем новый комментарий
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumber,
+                    body: comment,
+                  });
+                }
+              } else {
+                console.log('Файл review_output.json не найден');
+              }
+            } catch (error) {
+              console.error('Ошибка при публикации ревью:', error);
+              // Не падаем, если не удалось опубликовать комментарий
+            }
+

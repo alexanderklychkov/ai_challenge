@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { Assistant } from './src/assistant.js';
+import { PRReviewer } from './src/reviewer.js';
 import { renderMarkdown, renderMarkdownSimple } from './src/utils/markdownRenderer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,6 +49,15 @@ program
   .option('-d, --dir <path>', 'Путь к директории с документацией', './docs')
   .action(async (options) => {
     await indexDocumentation(options.dir);
+  });
+
+program
+  .command('review')
+  .description('Провести ревью Pull Request')
+  .argument('<prNumber>', 'Номер PR для ревью')
+  .option('-o, --output <format>', 'Формат вывода (text|json)', 'text')
+  .action(async (prNumber, options) => {
+    await reviewPR(parseInt(prNumber), options.output);
   });
 
 async function startInteractiveMode() {
@@ -141,6 +151,79 @@ async function indexDocumentation(dirPath) {
   await assistant.initialize();
   await assistant.indexDocumentation(dirPath);
   console.log(chalk.green('\n✅ Документация проиндексирована!\n'));
+  process.exit(0);
+}
+
+async function reviewPR(prNumber, outputFormat = 'text') {
+  console.log(chalk.blue(`\n🔍 Провожу ревью PR #${prNumber}...\n`));
+  
+  try {
+    const reviewer = new PRReviewer();
+    await reviewer.initialize();
+    
+    const result = await reviewer.reviewPR(prNumber);
+    
+    if (outputFormat === 'json') {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      // Выводим структурированное ревью
+      console.log(chalk.bold.cyan(`\n📋 Ревью PR #${result.prNumber}: ${result.prTitle}\n`));
+      console.log(chalk.gray(`Файлов проверено: ${result.metadata.filesReviewed}`));
+      console.log(chalk.gray(`Использовано чанков: ${result.metadata.chunksUsed}\n`));
+      
+      if (result.review.problems.length > 0) {
+        console.log(chalk.bold.red('🔍 Найденные проблемы:'));
+        result.review.problems.forEach((problem, i) => {
+          console.log(chalk.red(`  ${i + 1}. ${problem}`));
+        });
+        console.log('');
+      }
+      
+      if (result.review.bugs.length > 0) {
+        console.log(chalk.bold.yellow('🐛 Потенциальные баги:'));
+        result.review.bugs.forEach((bug, i) => {
+          console.log(chalk.yellow(`  ${i + 1}. ${bug}`));
+        });
+        console.log('');
+      }
+      
+      if (result.review.improvements.length > 0) {
+        console.log(chalk.bold.blue('💡 Советы по улучшению:'));
+        result.review.improvements.forEach((improvement, i) => {
+          console.log(chalk.blue(`  ${i + 1}. ${improvement}`));
+        });
+        console.log('');
+      }
+      
+      if (result.review.positives.length > 0) {
+        console.log(chalk.bold.green('✅ Положительные моменты:'));
+        result.review.positives.forEach((positive, i) => {
+          console.log(chalk.green(`  ${i + 1}. ${positive}`));
+        });
+        console.log('');
+      }
+      
+      // Если парсинг не сработал, выводим raw ответ
+      if (result.review.problems.length === 0 && 
+          result.review.bugs.length === 0 && 
+          result.review.improvements.length === 0) {
+        console.log(chalk.bold('\n📝 Полный текст ревью:\n'));
+        try {
+          const rendered = renderMarkdown(result.review.raw);
+          console.log(rendered);
+        } catch (error) {
+          console.log(renderMarkdownSimple(result.review.raw));
+        }
+      }
+    }
+  } catch (error) {
+    console.error(chalk.red('\n❌ Ошибка при ревью PR:'), error.message);
+    if (error.stack) {
+      console.error(chalk.gray(error.stack));
+    }
+    process.exit(1);
+  }
+  
   process.exit(0);
 }
 
