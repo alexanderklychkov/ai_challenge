@@ -55,8 +55,12 @@ jobs:
           LM_STUDIO_API_KEY: ${{ secrets.LM_STUDIO_API_KEY }}
           LM_STUDIO_EMBEDDING_MODEL: ${{ secrets.LM_STUDIO_EMBEDDING_MODEL }}
         run: |
+          # Запускаем ревью и сохраняем JSON в файл
+          # Сообщения от chalk уже не выводятся в stdout при формате json
           node index.js review ${{ github.event.pull_request.number }} --output json > review_output.json || exit 1
-          cat review_output.json
+          # Проверяем, что файл содержит валидный JSON
+          node -e "JSON.parse(require('fs').readFileSync('review_output.json', 'utf8'))" || (echo "Error: Invalid JSON in review_output.json" && cat review_output.json && exit 1)
+          echo "Review completed successfully"
 
       - name: Post review as comment
         uses: actions/github-script@v7

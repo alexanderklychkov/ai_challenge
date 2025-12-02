@@ -155,7 +155,10 @@ async function indexDocumentation(dirPath) {
 }
 
 async function reviewPR(prNumber, outputFormat = 'text') {
-  console.log(chalk.blue(`\n🔍 Провожу ревью PR #${prNumber}...\n`));
+  // Выводим сообщения в stderr, чтобы они не попадали в JSON файл
+  if (outputFormat !== 'json') {
+    console.error(chalk.blue(`\n🔍 Провожу ревью PR #${prNumber}...\n`));
+  }
   
   try {
     const reviewer = new PRReviewer();
@@ -164,6 +167,7 @@ async function reviewPR(prNumber, outputFormat = 'text') {
     const result = await reviewer.reviewPR(prNumber);
     
     if (outputFormat === 'json') {
+      // Выводим только чистый JSON в stdout, без дополнительных сообщений
       console.log(JSON.stringify(result, null, 2));
     } else {
       // Выводим структурированное ревью
@@ -217,9 +221,18 @@ async function reviewPR(prNumber, outputFormat = 'text') {
       }
     }
   } catch (error) {
+    // Всегда выводим ошибки в stderr
     console.error(chalk.red('\n❌ Ошибка при ревью PR:'), error.message);
     if (error.stack) {
       console.error(chalk.gray(error.stack));
+    }
+    // Если формат json, выводим ошибку в JSON формате в stdout
+    if (outputFormat === 'json') {
+      console.log(JSON.stringify({
+        error: true,
+        message: error.message,
+        stack: error.stack
+      }, null, 2));
     }
     process.exit(1);
   }
