@@ -44,8 +44,9 @@ CUSTOM_EMBEDDING_MODEL=text-embedding-ada-002  # опционально
 HUGGINGFACE_API_KEY=your_huggingface_token
 # или используйте HF_TOKEN (эквивалентно)
 HF_TOKEN=your_huggingface_token
-HUGGINGFACE_EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5  # опционально, по умолчанию nomic-ai/nomic-embed-text-v1.5
-# Популярные модели: nomic-ai/nomic-embed-text-v1.5, sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base
+HUGGINGFACE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2  # опционально, по умолчанию sentence-transformers/all-MiniLM-L6-v2
+HUGGINGFACE_PROVIDER=hf-inference  # опционально, по умолчанию hf-inference (можно использовать 'auto', 'nebius', 'sambanova' и т.д.)
+# Популярные модели: sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base, BAAI/bge-small-en-v1.5
 # Получить токен: https://huggingface.co/settings/tokens
 
 # Вариант 3: Локальный LM Studio (для локальной разработки)
@@ -75,7 +76,8 @@ GITHUB_TOKEN=your_github_token
 - `CUSTOM_EMBEDDING_URL` - URL кастомного OpenAI-совместимого API (наивысший приоритет)
 - `CUSTOM_EMBEDDING_API_KEY` - ключ для кастомного API (опционально)
 - `HUGGINGFACE_API_KEY` - токен Hugging Face (рекомендуется если OpenAI/DeepSeek недоступны)
-- `HUGGINGFACE_EMBEDDING_MODEL` - модель Hugging Face (по умолчанию `nomic-ai/nomic-embed-text-v1.5`)
+- `HUGGINGFACE_EMBEDDING_MODEL` - модель Hugging Face (по умолчанию `sentence-transformers/all-MiniLM-L6-v2`)
+- `HUGGINGFACE_PROVIDER` - провайдер Inference Providers (по умолчанию `hf-inference`, можно использовать `auto`, `nebius`, `sambanova` и т.д.)
 - `LM_STUDIO_URL`, `LM_STUDIO_API_KEY`, `LM_STUDIO_EMBEDDING_MODEL` - для локального LM Studio
 - `DEEPSEEK_EMBEDDING_MODEL` - модель для DeepSeek embeddings (опционально)
 - `OPENAI_EMBEDDING_MODEL` - модель для OpenAI embeddings (опционально)
@@ -84,7 +86,8 @@ GITHUB_TOKEN=your_github_token
 - Приоритет выбора провайдера эмбеддингов: **CUSTOM > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI**
 - **Рекомендация:** Используйте `HUGGINGFACE_API_KEY` если OpenAI/DeepSeek недоступны в вашей стране
 - Получить токен Hugging Face: https://huggingface.co/settings/tokens
-- Популярные модели Hugging Face: `sentence-transformers/all-MiniLM-L6-v2`, `intfloat/multilingual-e5-base`
+- Популярные модели Hugging Face: `sentence-transformers/all-MiniLM-L6-v2` (по умолчанию), `intfloat/multilingual-e5-base`, `BAAI/bge-small-en-v1.5`
+- **Важно:** Модель `nomic-ai/nomic-embed-text-v1.5` не доступна через Inference Providers, используйте `sentence-transformers/all-MiniLM-L6-v2` или другую доступную модель
 
 ### 4. Индексация документации
 

@@ -23,18 +23,21 @@ export class EmbeddingGenerator {
       // Документация: https://huggingface.co/docs/inference-providers/index
       this.provider = 'huggingface';
       const apiKey = config.apiKey || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN;
-      const defaultModel = config.model || process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
+      // Используем модель, которая точно доступна через Inference Providers
+      // sentence-transformers/all-MiniLM-L6-v2 - популярная модель, доступная через hf-inference
+      const defaultModel = config.model || process.env.HUGGINGFACE_EMBEDDING_MODEL || 'sentence-transformers/all-MiniLM-L6-v2';
       
       // Инициализируем InferenceClient из @huggingface/inference
       // Согласно документации: https://huggingface.co/docs/inference-providers/index
       this.hfClient = new HfInference(apiKey);
       this.model = defaultModel;
-      this.dimension = config.dimension || 768;
+      this.dimension = config.dimension || 384; // all-MiniLM-L6-v2 имеет размерность 384
       
       // Опционально можно указать провайдера явно
       // Например: "hf-inference", "nebius", "sambanova" и т.д.
       // Если не указан, используется "auto" (автоматический выбор)
-      this.hfProvider = config.provider || process.env.HUGGINGFACE_PROVIDER || 'auto';
+      // Для надежности можно использовать "hf-inference" явно
+      this.hfProvider = config.provider || process.env.HUGGINGFACE_PROVIDER || 'hf-inference';
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
       this.provider = 'lm-studio';
@@ -99,14 +102,24 @@ export class EmbeddingGenerator {
           throw new Error('Неожиданный формат ответа от Hugging Face API');
         } catch (error) {
           // Улучшаем сообщения об ошибках
-          if (error.message?.includes('503') || error.message?.includes('loading')) {
+          const errorMsg = error.message || String(error);
+          
+          if (errorMsg.includes('503') || errorMsg.includes('loading')) {
             throw new Error('Модель загружается. Попробуйте повторить запрос через несколько секунд.');
           }
-          if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+          if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
             throw new Error('Неверный токен Hugging Face. Проверьте HUGGINGFACE_API_KEY или HF_TOKEN.');
           }
-          if (error.message?.includes('404') || error.message?.includes('not found')) {
+          if (errorMsg.includes('404') || errorMsg.includes('not found')) {
             throw new Error(`Модель ${this.model} не найдена. Проверьте название модели.`);
+          }
+          if (errorMsg.includes('No Inference Provider available') || errorMsg.includes('inference provider')) {
+            throw new Error(
+              `Модель ${this.model} не доступна через Inference Providers. ` +
+              `Попробуйте использовать другую модель, например: sentence-transformers/all-MiniLM-L6-v2, ` +
+              `intfloat/multilingual-e5-base, или BAAI/bge-small-en-v1.5. ` +
+              `Также можно указать другой провайдер через переменную HUGGINGFACE_PROVIDER.`
+            );
           }
           throw error;
         }
@@ -241,14 +254,24 @@ export class EmbeddingGenerator {
           throw new Error('Неожиданный формат ответа от Hugging Face API');
         } catch (error) {
           // Улучшаем сообщения об ошибках
-          if (error.message?.includes('503') || error.message?.includes('loading')) {
+          const errorMsg = error.message || String(error);
+          
+          if (errorMsg.includes('503') || errorMsg.includes('loading')) {
             throw new Error('Модель загружается. Попробуйте повторить запрос через несколько секунд.');
           }
-          if (error.message?.includes('401') || error.message?.includes('unauthorized')) {
+          if (errorMsg.includes('401') || errorMsg.includes('unauthorized')) {
             throw new Error('Неверный токен Hugging Face. Проверьте HUGGINGFACE_API_KEY или HF_TOKEN.');
           }
-          if (error.message?.includes('404') || error.message?.includes('not found')) {
+          if (errorMsg.includes('404') || errorMsg.includes('not found')) {
             throw new Error(`Модель ${this.model} не найдена. Проверьте название модели.`);
+          }
+          if (errorMsg.includes('No Inference Provider available') || errorMsg.includes('inference provider')) {
+            throw new Error(
+              `Модель ${this.model} не доступна через Inference Providers. ` +
+              `Попробуйте использовать другую модель, например: sentence-transformers/all-MiniLM-L6-v2, ` +
+              `intfloat/multilingual-e5-base, или BAAI/bge-small-en-v1.5. ` +
+              `Также можно указать другой провайдер через переменную HUGGINGFACE_PROVIDER.`
+            );
           }
           throw error;
         }

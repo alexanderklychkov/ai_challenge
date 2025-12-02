@@ -55,11 +55,12 @@ export class Assistant {
       // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
       // Документация: https://huggingface.co/docs/inference-providers/index
       // Используем InferenceClient из @huggingface/inference (не требует apiUrl)
-      const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'nomic-ai/nomic-embed-text-v1.5';
+      // Используем модель, которая точно доступна через Inference Providers
+      const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'sentence-transformers/all-MiniLM-L6-v2';
       embeddingConfig = {
         apiKey: process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN,
         model: defaultModel,
-        provider: process.env.HUGGINGFACE_PROVIDER || 'auto', // Опционально: 'hf-inference', 'nebius', 'sambanova' и т.д.
+        provider: process.env.HUGGINGFACE_PROVIDER || 'hf-inference', // Используем hf-inference для надежности
       };
     } else if (process.env.LM_STUDIO_URL) {
       // Используем LM Studio или другой локальный сервис
