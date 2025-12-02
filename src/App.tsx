@@ -15,6 +15,7 @@ function App() {
   const isLearningRoute = location.pathname.startsWith('/learning');
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Тестовая функция с багами для проверки PR ревью
   const testFunction = useCallback(() => {
     const unusedVar = 'не используется';
     const data = { items: [1, 2, 3] };
