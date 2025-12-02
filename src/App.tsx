@@ -15,6 +15,8 @@ function App() {
   const isLearningRoute = location.pathname.startsWith('/learning');
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Тестовый комментарий для PR 2
+
   const handleChatListRefresh = useCallback(() => {
     // Debounce обновления списка чатов
     if (refreshTimeoutRef.current) {
