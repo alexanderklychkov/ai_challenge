@@ -165,7 +165,7 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
 
   // Режим работы: 'parallel' - параллельно, 'chain' - цепочкой
   const { messages, isLoading, isLoadingMessages, sendMessage, clearMessages, tokenStatistics } = useChat({ 
-    chatId: currentChatId || 'temp',
+    chatId: currentChatId,
     models, 
     mode: chatMode,
     analyzerModel,

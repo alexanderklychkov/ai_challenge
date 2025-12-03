@@ -547,9 +547,9 @@ const ChatArea = ({
       </div>
 
       {/* Поле ввода */}
-      <div className="border-t border-[#2a2a3a] px-4 md:px-6 py-4 bg-[#151520]/80 backdrop-blur-xl relative">
+      <div className="h-16 border-t border-[#2a2a3a] px-4 md:px-6 bg-[#151520]/80 backdrop-blur-xl relative flex items-center">
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#b026ff] to-transparent"></div>
-        <div className="flex space-x-3 relative z-10">
+        <div className="flex space-x-3 relative z-10 w-full">
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}

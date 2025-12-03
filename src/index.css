@@ -92,6 +92,17 @@ body::before {
   }
 }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Анимация для переворота карточек */
 .perspective-1000 {
   perspective: 1000px;

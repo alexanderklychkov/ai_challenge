@@ -20,8 +20,9 @@ async function ensureDataDir() {
 
 /**
  * Загружает список всех чатов
+ * @param {string} userId - ID пользователя (опционально)
  */
-export async function loadChats() {
+export async function loadChats(userId = null) {
   try {
     await ensureDataDir();
     
@@ -32,7 +33,12 @@ export async function loadChats() {
     const fileContent = await readFile(CHATS_FILE, 'utf-8');
     const chats = JSON.parse(fileContent);
     
-    return chats.map(chat => ({
+    // Фильтруем по userId, если указан
+    const filteredChats = userId 
+      ? chats.filter(chat => chat.userId === userId)
+      : chats;
+    
+    return filteredChats.map(chat => ({
       ...chat,
       createdAt: new Date(chat.createdAt),
       updatedAt: new Date(chat.updatedAt),
@@ -65,8 +71,10 @@ async function saveChats(chats) {
 
 /**
  * Создает новый чат
+ * @param {string} title - Название чата
+ * @param {string} userId - ID пользователя (опционально)
  */
-export async function createChat(title = 'Новый чат') {
+export async function createChat(title = 'Новый чат', userId = null) {
   try {
     await ensureDataDir();
     
@@ -74,6 +82,7 @@ export async function createChat(title = 'Новый чат') {
     const newChat = {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       title,
+      userId: userId || null,
       createdAt: new Date(),
       updatedAt: new Date(),
       messageCount: 0,

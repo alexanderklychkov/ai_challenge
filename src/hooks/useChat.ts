@@ -781,6 +781,13 @@ export const useChat = (options: UseChatOptions) => {
 
   // Загрузка сообщений при монтировании компонента или смене chatId
   useEffect(() => {
+    // Не загружаем сообщения, если chatId пустой или равен 'temp'
+    if (!chatId || chatId === 'temp') {
+      setIsLoadingMessages(false);
+      isInitialLoadRef.current = false;
+      return;
+    }
+
     setIsLoadingMessages(true);
     isInitialLoadRef.current = true;
     setMessages([]);
@@ -801,8 +808,8 @@ export const useChat = (options: UseChatOptions) => {
 
   // Автоматическое сохранение сообщений при их изменении (с debounce)
   useEffect(() => {
-    // Пропускаем сохранение при первоначальной загрузке
-    if (isInitialLoadRef.current) {
+    // Пропускаем сохранение при первоначальной загрузке или если chatId пустой
+    if (isInitialLoadRef.current || !chatId || chatId === 'temp') {
       return;
     }
 

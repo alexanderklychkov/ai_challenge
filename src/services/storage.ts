@@ -1,5 +1,6 @@
 import { Message } from '../types/message';
 import { Chat, ChatSettings } from '../types/chat';
+import { getAuthHeader } from './auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_PROXY_URL?.replace(/\/api\/.*$/, '') || 'http://localhost:3001';
 
@@ -8,7 +9,11 @@ const API_BASE_URL = import.meta.env.VITE_API_PROXY_URL?.replace(/\/api\/.*$/, '
  */
 export async function loadMessages(chatId: string): Promise<Message[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`);
+    const response = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`, {
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
@@ -36,6 +41,7 @@ export async function saveMessages(chatId: string, messages: Message[]): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ messages }),
     });
@@ -58,6 +64,9 @@ export async function clearMessages(chatId: string): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeader(),
+      },
     });
 
     if (!response.ok) {
@@ -76,7 +85,11 @@ export async function clearMessages(chatId: string): Promise<boolean> {
  */
 export async function loadChats(): Promise<Chat[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/chats`);
+    const response = await fetch(`${API_BASE_URL}/api/chats`, {
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
@@ -105,6 +118,7 @@ export async function createChat(title?: string): Promise<Chat | null> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ title }),
     });
@@ -132,6 +146,9 @@ export async function deleteChat(chatId: string): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/chats/${chatId}`, {
       method: 'DELETE',
+      headers: {
+        ...getAuthHeader(),
+      },
     });
 
     if (!response.ok) {
@@ -154,6 +171,7 @@ export async function updateChatTitle(chatId: string, title: string): Promise<bo
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ title }),
     });
@@ -178,6 +196,7 @@ export async function updateChatSettings(chatId: string, settings: ChatSettings)
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeader(),
       },
       body: JSON.stringify({ settings }),
     });

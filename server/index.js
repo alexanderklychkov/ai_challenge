@@ -47,6 +47,10 @@ import {
 import { registerConnection } from './utils/statusEmitter.js';
 import { DocumentIndexer } from './rag/indexer.js';
 import { RAGService } from './rag/ragService.js';
+import { SupportService } from './support/supportService.js';
+import { register, login, getCurrentUser } from './auth/authController.js';
+import { authenticateToken } from './auth/middleware.js';
+import { findUserById } from './utils/userStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,16 +64,21 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// Эндпоинты для авторизации
+app.post('/api/auth/register', register);
+app.post('/api/auth/login', login);
+app.get('/api/auth/me', authenticateToken, getCurrentUser);
+
 // Эндпоинты для различных AI моделей
 app.post('/api/yandex-gpt', handleYandexGPT);
 app.post('/api/deepseek', handleDeepSeek);
 app.post('/api/chatgpt', handleChatGPT);
 app.post('/api/huggingface', handleHuggingFace);
 
-// Эндпоинты для работы с чатами
-app.get('/api/chats', async (req, res) => {
+// Эндпоинты для работы с чатами (требуют авторизации)
+app.get('/api/chats', authenticateToken, async (req, res) => {
   try {
-    const chats = await loadChats();
+    const chats = await loadChats(req.userId);
     res.json(chats);
   } catch (error) {
     console.error('Ошибка при загрузке чатов:', error);
@@ -77,10 +86,10 @@ app.get('/api/chats', async (req, res) => {
   }
 });
 
-app.post('/api/chats', async (req, res) => {
+app.post('/api/chats', authenticateToken, async (req, res) => {
   try {
     const { title } = req.body;
-    const chat = await createChat(title);
+    const chat = await createChat(title, req.userId);
     res.json(chat);
   } catch (error) {
     console.error('Ошибка при создании чата:', error);
@@ -88,10 +97,18 @@ app.post('/api/chats', async (req, res) => {
   }
 });
 
-app.patch('/api/chats/:chatId', async (req, res) => {
+app.patch('/api/chats/:chatId', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
     const { title } = req.body;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     const success = await updateChatTitle(chatId, title);
     if (success) {
       res.json({ success: true });
@@ -104,10 +121,18 @@ app.patch('/api/chats/:chatId', async (req, res) => {
   }
 });
 
-app.put('/api/chats/:chatId/settings', async (req, res) => {
+app.put('/api/chats/:chatId/settings', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
     const { settings } = req.body;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     const success = await updateChatSettings(chatId, settings);
     if (success) {
       res.json({ success: true });
@@ -120,9 +145,17 @@ app.put('/api/chats/:chatId/settings', async (req, res) => {
   }
 });
 
-app.delete('/api/chats/:chatId', async (req, res) => {
+app.delete('/api/chats/:chatId', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     const success = await deleteChat(chatId);
     if (success) {
       res.json({ success: true });
@@ -136,9 +169,17 @@ app.delete('/api/chats/:chatId', async (req, res) => {
 });
 
 // Эндпоинты для работы с сообщениями конкретного чата
-app.get('/api/chats/:chatId/messages', async (req, res) => {
+app.get('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     const messages = await loadChatMessages(chatId);
     res.json(messages);
   } catch (error) {
@@ -147,10 +188,18 @@ app.get('/api/chats/:chatId/messages', async (req, res) => {
   }
 });
 
-app.post('/api/chats/:chatId/messages', async (req, res) => {
+app.post('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
     const { messages } = req.body;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     if (!Array.isArray(messages)) {
       return res.status(400).json({ error: 'messages должен быть массивом' });
     }
@@ -162,9 +211,17 @@ app.post('/api/chats/:chatId/messages', async (req, res) => {
   }
 });
 
-app.delete('/api/chats/:chatId/messages', async (req, res) => {
+app.delete('/api/chats/:chatId/messages', authenticateToken, async (req, res) => {
   try {
     const { chatId } = req.params;
+    
+    // Проверяем, что чат принадлежит пользователю
+    const chats = await loadChats(req.userId);
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+    
     await clearChatMessages(chatId);
     res.json({ success: true });
   } catch (error) {
@@ -174,11 +231,11 @@ app.delete('/api/chats/:chatId/messages', async (req, res) => {
 });
 
 // Старые эндпоинты для обратной совместимости (используют первый чат или создают его)
-app.get('/api/messages', async (req, res) => {
+app.get('/api/messages', authenticateToken, async (req, res) => {
   try {
-    const chats = await loadChats();
+    const chats = await loadChats(req.userId);
     if (chats.length === 0) {
-      const newChat = await createChat('Новый чат');
+      const newChat = await createChat('Новый чат', req.userId);
       const messages = await loadChatMessages(newChat.id);
       return res.json(messages);
     }
@@ -190,16 +247,16 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-app.post('/api/messages', async (req, res) => {
+app.post('/api/messages', authenticateToken, async (req, res) => {
   try {
     const { messages } = req.body;
     if (!Array.isArray(messages)) {
       return res.status(400).json({ error: 'messages должен быть массивом' });
     }
-    const chats = await loadChats();
+    const chats = await loadChats(req.userId);
     let chatId;
     if (chats.length === 0) {
-      const newChat = await createChat('Новый чат');
+      const newChat = await createChat('Новый чат', req.userId);
       chatId = newChat.id;
     } else {
       chatId = chats[0].id;
@@ -212,9 +269,9 @@ app.post('/api/messages', async (req, res) => {
   }
 });
 
-app.delete('/api/messages', async (req, res) => {
+app.delete('/api/messages', authenticateToken, async (req, res) => {
   try {
-    const chats = await loadChats();
+    const chats = await loadChats(req.userId);
     if (chats.length > 0) {
       await clearChatMessages(chats[0].id);
     }
@@ -639,6 +696,16 @@ async function getRAGService(rerankerConfig = null) {
     ragService = new RAGService(indexer, rerankerConfig);
   }
   return ragService;
+}
+
+let supportService = null;
+
+async function getSupportService() {
+  if (!supportService) {
+    const rag = await getRAGService();
+    supportService = new SupportService(rag);
+  }
+  return supportService;
 }
 
 // Инициализация индексатора при запуске сервера
@@ -1213,6 +1280,450 @@ app.post('/api/rag/compare-reranker', async (req, res) => {
     res.json(comparison);
   } catch (error) {
     console.error('Ошибка при сравнении с reranker:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для поддержки пользователей (требует авторизации)
+app.post('/api/support/query', authenticateToken, async (req, res) => {
+  try {
+    const {
+      question,
+      modelType,
+      userName,
+      userEmail,
+      ticketId: providedTicketId,
+      messages = [],
+      topK = 5,
+      minScore = 0.3,
+      model,
+      temperature,
+      max_tokens,
+      system_prompt,
+    } = req.body;
+
+    if (!question) {
+      return res.status(400).json({ error: 'question обязателен' });
+    }
+
+    if (!modelType) {
+      return res.status(400).json({ error: 'modelType обязателен' });
+    }
+
+    // Получаем информацию о пользователе из токена
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Используем данные авторизованного пользователя
+    const finalUserName = userName || user.name;
+    const finalUserEmail = userEmail || user.email;
+
+    // Используем переданный ticketId или создаем новый тикет
+    let createdTicketId = providedTicketId || null;
+    if (!createdTicketId) {
+      try {
+        const { callTool } = await import('./mcp/orchestrator.js');
+        
+        console.log('Создание нового тикета для пользователя:', {
+          userId: req.userId,
+          userEmail: finalUserEmail,
+          userName: finalUserName,
+          subject: question.substring(0, 100),
+        });
+        
+        // Создаем тикет с вопросом пользователя
+        const ticketResult = await callTool('createTicket', {
+          userEmail: finalUserEmail,
+          userId: req.userId,
+          subject: question.substring(0, 100), // Первые 100 символов как тема
+          description: question,
+          priority: 'medium',
+          category: 'general',
+        }, 'crm-mcp-server', true);
+
+        console.log('Результат создания тикета (полный):', JSON.stringify(ticketResult, null, 2));
+        
+        // Извлекаем результат из обертки, если используется returnMetadata
+        const actualTicketResult = ticketResult?.result !== undefined ? ticketResult.result : ticketResult;
+        
+        console.log('Результат создания тикета (извлеченный):', JSON.stringify(actualTicketResult, null, 2));
+        
+        if (actualTicketResult && actualTicketResult.success && actualTicketResult.ticket) {
+          createdTicketId = actualTicketResult.ticket.id;
+          console.log('Тикет создан успешно:', createdTicketId);
+        } else {
+          console.warn('Тикет не был создан. Результат:', JSON.stringify(actualTicketResult, null, 2));
+        }
+      } catch (error) {
+        console.error('Ошибка при создании тикета:', error);
+        console.error('Детали ошибки:', error.message);
+        if (error.stack) {
+          console.error('Stack trace:', error.stack);
+        }
+        // Продолжаем выполнение даже если не удалось создать
+      }
+    } else {
+      console.log('Используется существующий тикет:', createdTicketId);
+    }
+
+    // Получаем сервис поддержки
+    const support = await getSupportService();
+
+    // Создаем функцию для вызова LLM
+    const llmCaller = async (prompt, historyMessages) => {
+      const requestBody = {
+        messages: historyMessages.length > 0
+          ? historyMessages
+          : [{ role: 'user', content: prompt }],
+        system_prompt: system_prompt || '',
+        model: model || undefined,
+        temperature: temperature || 0.3,
+        max_tokens: max_tokens || 2000,
+      };
+
+      let handler;
+      switch (modelType.toLowerCase()) {
+        case 'deepseek':
+          handler = handleDeepSeek;
+          break;
+        case 'yandex':
+        case 'yandexgpt':
+          handler = handleYandexGPT;
+          break;
+        case 'chatgpt':
+        case 'openai':
+          handler = handleChatGPT;
+          break;
+        case 'huggingface':
+          handler = handleHuggingFace;
+          break;
+        default:
+          throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
+      }
+
+      return new Promise((resolve, reject) => {
+        const mockReq = { body: requestBody };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: (code) => ({
+            json: (data) => reject(new Error(data.error || `HTTP ${code}`)),
+          }),
+        };
+
+        handler(mockReq, mockRes).catch(reject);
+      });
+    };
+
+    // Обрабатываем вопрос поддержки
+    let result;
+    try {
+      result = await support.processSupportQuestion(question, llmCaller, {
+        userEmail: finalUserEmail,
+        ticketId: createdTicketId,
+        messages,
+        topK,
+        minScore,
+      });
+    } catch (error) {
+      console.error('Ошибка при обработке вопроса поддержки:', error);
+      // Продолжаем выполнение, даже если была ошибка
+      result = { answer: 'Извините, произошла ошибка при обработке вашего вопроса.' };
+    }
+
+    // Если тикет был создан, добавляем ответ ИИ в тикет
+    console.log('=== ПРОВЕРКА УСЛОВИЙ ДЛЯ ДОБАВЛЕНИЯ ОТВЕТА ИИ ===');
+    console.log('createdTicketId:', createdTicketId);
+    console.log('result:', result ? JSON.stringify(result, null, 2) : 'null');
+    console.log('result.answer:', result?.answer ? `"${result.answer.substring(0, 100)}..."` : 'undefined/null');
+    console.log('hasAnswer:', !!result?.answer);
+    console.log('answerLength:', result?.answer?.length);
+    console.log('==================================================');
+    
+    if (createdTicketId && result?.answer) {
+      console.log('✓ Условия выполнены, начинаем добавление ответа ИИ');
+      try {
+        const { callTool } = await import('./mcp/orchestrator.js');
+        console.log('Добавление ответа ИИ в созданный тикет:', {
+          ticketId: createdTicketId,
+          answerLength: result.answer.length,
+          answerPreview: result.answer.substring(0, 100)
+        });
+        
+        const addMessageResult = await callTool('addTicketMessage', {
+          ticketId: createdTicketId,
+          author: 'assistant',
+          text: result.answer,
+        }, 'crm-mcp-server', true);
+        
+        // Извлекаем результат из обертки, если используется returnMetadata
+        const actualResult = addMessageResult?.result !== undefined ? addMessageResult.result : addMessageResult;
+        
+        console.log('Результат добавления сообщения:', JSON.stringify(actualResult, null, 2));
+        
+        if (actualResult && actualResult.success) {
+          console.log('Ответ ИИ успешно добавлен в тикет:', createdTicketId);
+          
+          // Проверяем, что сообщение действительно добавлено
+          const verifyResult = await callTool('getTicket', {
+            ticketId: createdTicketId,
+          }, 'crm-mcp-server', true);
+          
+          const verifyActualResult = verifyResult?.result !== undefined ? verifyResult.result : verifyResult;
+          if (verifyActualResult && verifyActualResult.found && verifyActualResult.ticket) {
+            const messagesCount = verifyActualResult.ticket.messages?.length || 0;
+            console.log(`Тикет содержит ${messagesCount} сообщений после добавления ответа ИИ`);
+            if (messagesCount >= 2) {
+              const lastMessage = verifyActualResult.ticket.messages[messagesCount - 1];
+              console.log('Последнее сообщение:', {
+                author: lastMessage.author,
+                textPreview: lastMessage.text?.substring(0, 50)
+              });
+            } else {
+              console.error('ОШИБКА: Сообщение не было добавлено! Тикет содержит только', messagesCount, 'сообщений');
+            }
+          }
+        } else {
+          console.error('ОШИБКА: Ответ ИИ не был добавлен в тикет. Результат:', JSON.stringify(actualResult, null, 2));
+        }
+      } catch (error) {
+        console.error('КРИТИЧЕСКАЯ ОШИБКА при добавлении ответа ИИ в тикет:', error);
+        console.error('Детали ошибки:', error.message);
+        if (error.stack) {
+          console.error('Stack trace:', error.stack);
+        }
+        // Не прерываем выполнение, просто логируем ошибку
+      }
+    } else {
+      console.log('✗ Условия НЕ выполнены для добавления ответа ИИ');
+      if (!createdTicketId) {
+        console.log('  → Причина: Тикет не был создан (createdTicketId =', createdTicketId, ')');
+      }
+      if (!result?.answer) {
+        console.log('  → Причина: Ответ ИИ пустой или отсутствует (result.answer =', result?.answer, ')');
+      }
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Ошибка при обработке вопроса поддержки:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для получения тикетов текущего пользователя
+app.get('/api/support/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { callTool } = await import('./mcp/orchestrator.js');
+    
+    // Получаем информацию о пользователе
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Получаем тикеты пользователя
+    console.log('Запрос тикетов для пользователя:', { userId: req.userId, email: user.email });
+    
+    const result = await callTool('getUserTickets', {
+      userId: req.userId,
+      email: user.email,
+    }, 'crm-mcp-server', true);
+
+    console.log('Результат getUserTickets (полный):', JSON.stringify(result, null, 2));
+    
+    // callTool с returnMetadata=true возвращает { result: ..., serverId: ..., ... }
+    // getUserTickets возвращает { count: X, tickets: [...] }
+    let tickets = [];
+    
+    // Извлекаем результат из обертки
+    const actualResult = result?.result !== undefined ? result.result : result;
+    
+    console.log('actualResult:', JSON.stringify(actualResult, null, 2));
+    
+    // getUserTickets возвращает объект с полями count и tickets
+    if (actualResult && actualResult.tickets && Array.isArray(actualResult.tickets)) {
+      tickets = actualResult.tickets;
+    } else if (actualResult && actualResult.content && Array.isArray(actualResult.content)) {
+      // Если результат в формате MCP
+      const content = actualResult.content[0];
+      if (content && content.text) {
+        try {
+          const parsed = JSON.parse(content.text);
+          tickets = parsed.tickets || parsed || [];
+        } catch (e) {
+          console.error('Ошибка парсинга результата MCP:', e);
+        }
+      }
+    } else if (Array.isArray(actualResult)) {
+      // Если результат - массив тикетов напрямую
+      tickets = actualResult;
+    }
+
+    console.log('Тикеты для отправки:', tickets.length, tickets);
+    res.json(tickets);
+  } catch (error) {
+    console.error('Ошибка при получении тикетов:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для получения тикета по ID
+app.get('/api/support/tickets/:ticketId', authenticateToken, async (req, res) => {
+  try {
+    const { callTool } = await import('./mcp/orchestrator.js');
+    const { ticketId } = req.params;
+    
+    // Получаем информацию о пользователе
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Получаем тикет по ID
+    console.log('Запрос тикета по ID:', { ticketId, userId: req.userId, email: user.email });
+    
+    const result = await callTool('getTicket', {
+      ticketId: ticketId,
+    }, 'crm-mcp-server', true);
+
+    // Извлекаем результат из обертки
+    const actualResult = result?.result !== undefined ? result.result : result;
+    
+    // getTicket возвращает объект с полями found и ticket
+    if (actualResult && actualResult.found && actualResult.ticket) {
+      const ticket = actualResult.ticket;
+      
+      // Проверяем, что тикет принадлежит текущему пользователю
+      if (ticket.userId !== req.userId && ticket.userEmail !== user.email) {
+        return res.status(403).json({ error: 'Доступ запрещен' });
+      }
+      
+      res.json(ticket);
+    } else {
+      res.status(404).json({ error: 'Тикет не найден' });
+    }
+  } catch (error) {
+    console.error('Ошибка при получении тикета:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для добавления сообщения в тикет
+app.post('/api/support/tickets/:ticketId/messages', authenticateToken, async (req, res) => {
+  try {
+    const { callTool } = await import('./mcp/orchestrator.js');
+    const { ticketId } = req.params;
+    const { author, text } = req.body;
+    
+    if (!author || !text) {
+      return res.status(400).json({ error: 'author и text обязательны' });
+    }
+    
+    // Получаем информацию о пользователе
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Проверяем, что тикет принадлежит пользователю
+    const ticketResult = await callTool('getTicket', {
+      ticketId: ticketId,
+    }, 'crm-mcp-server', true);
+
+    const actualResult = ticketResult?.result !== undefined ? ticketResult.result : ticketResult;
+    
+    if (!actualResult || !actualResult.found || !actualResult.ticket) {
+      return res.status(404).json({ error: 'Тикет не найден' });
+    }
+
+    const ticket = actualResult.ticket;
+    
+    if (ticket.userId !== req.userId && ticket.userEmail !== user.email) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+
+    // Добавляем сообщение в тикет
+    console.log('Добавление сообщения в тикет:', { ticketId, author, text });
+    
+    const result = await callTool('addTicketMessage', {
+      ticketId: ticketId,
+      author: author,
+      text: text,
+    }, 'crm-mcp-server', true);
+
+    // Извлекаем результат из обертки
+    const actualMessageResult = result?.result !== undefined ? result.result : result;
+    
+    if (actualMessageResult && actualMessageResult.success) {
+      // Возвращаем обновленный тикет
+      const updatedTicketResult = await callTool('getTicket', {
+        ticketId: ticketId,
+      }, 'crm-mcp-server', true);
+
+      const updatedActualResult = updatedTicketResult?.result !== undefined ? updatedTicketResult.result : updatedTicketResult;
+      
+      if (updatedActualResult && updatedActualResult.found && updatedActualResult.ticket) {
+        res.json(updatedActualResult.ticket);
+      } else {
+        res.json({ success: true });
+      }
+    } else {
+      res.status(500).json({ error: 'Не удалось добавить сообщение' });
+    }
+  } catch (error) {
+    console.error('Ошибка при добавлении сообщения в тикет:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для удаления тикета
+app.delete('/api/support/tickets/:ticketId', authenticateToken, async (req, res) => {
+  try {
+    const { callTool } = await import('./mcp/orchestrator.js');
+    const { ticketId } = req.params;
+    
+    // Получаем информацию о пользователе
+    const user = await findUserById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    // Проверяем, что тикет принадлежит пользователю
+    const ticketResult = await callTool('getTicket', {
+      ticketId: ticketId,
+    }, 'crm-mcp-server', true);
+
+    const actualResult = ticketResult?.result !== undefined ? ticketResult.result : ticketResult;
+    
+    if (!actualResult || !actualResult.found || !actualResult.ticket) {
+      return res.status(404).json({ error: 'Тикет не найден' });
+    }
+
+    const ticket = actualResult.ticket;
+    
+    if (ticket.userId !== req.userId && ticket.userEmail !== user.email) {
+      return res.status(403).json({ error: 'Доступ запрещен' });
+    }
+
+    // Удаляем тикет
+    console.log('Удаление тикета:', { ticketId, userId: req.userId, email: user.email });
+    
+    const result = await callTool('deleteTicket', {
+      ticketId: ticketId,
+    }, 'crm-mcp-server', true);
+
+    // Извлекаем результат из обертки
+    const actualDeleteResult = result?.result !== undefined ? result.result : result;
+    
+    if (actualDeleteResult && actualDeleteResult.success) {
+      res.json({ success: true, ticketId });
+    } else {
+      res.status(500).json({ error: 'Не удалось удалить тикет' });
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении тикета:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -35,7 +35,6 @@ export class Assistant {
     }
 
     // Инициализируем RAG
-    // Определяем конфигурацию эмбеддингов: приоритет CUSTOM > HUGGINGFACE > LM_STUDIO > DEEPSEEK > OPENAI
     // Если USE_TEXT_SEARCH=true, пропускаем эмбеддинги и используем только текстовый поиск
     let embeddingConfig = {};
     if (process.env.USE_TEXT_SEARCH === 'true') {
@@ -43,48 +42,18 @@ export class Assistant {
       embeddingConfig = {
         skipEmbeddings: true,
       };
-    } else if (process.env.CUSTOM_EMBEDDING_URL) {
-      // Используем кастомный OpenAI-совместимый API (наивысший приоритет)
-      embeddingConfig = {
-        apiUrl: process.env.CUSTOM_EMBEDDING_URL,
-        apiKey: process.env.CUSTOM_EMBEDDING_API_KEY || '',
-        model: process.env.CUSTOM_EMBEDDING_MODEL || 'text-embedding-ada-002',
-      };
-    } else if (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) {
-      // Используем Hugging Face Inference Providers API
-      // Поддерживаем оба варианта: HUGGINGFACE_API_KEY и HF_TOKEN (они эквивалентны)
-      // Документация: https://huggingface.co/docs/inference-providers/index
-      // Используем InferenceClient из @huggingface/inference (не требует apiUrl)
-      // Используем модель, которая точно доступна через Inference Providers
-      const defaultModel = process.env.HUGGINGFACE_EMBEDDING_MODEL || 'sentence-transformers/all-MiniLM-L6-v2';
-      embeddingConfig = {
-        apiKey: process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN,
-        model: defaultModel,
-        provider: process.env.HUGGINGFACE_PROVIDER || 'hf-inference', // Используем hf-inference для надежности
-      };
-    } else if (process.env.LM_STUDIO_URL) {
-      // Используем LM Studio или другой локальный сервис
-      embeddingConfig = {
-        apiUrl: process.env.LM_STUDIO_URL,
-        apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
-        model: process.env.LM_STUDIO_EMBEDDING_MODEL || 'text-embedding-nomic-embed-text-v1.5',
-      };
-    } else if (process.env.DEEPSEEK_API_KEY) {
-      // Пытаемся использовать DeepSeek embeddings (может не работать)
-      embeddingConfig = {
-        apiUrl: process.env.DEEPSEEK_EMBEDDING_URL || 'https://api.deepseek.com/v1/embeddings',
-        apiKey: process.env.DEEPSEEK_API_KEY,
-        model: process.env.DEEPSEEK_EMBEDDING_MODEL || 'deepseek-embedding',
-      };
-    } else if (process.env.OPENAI_API_KEY) {
-      // Пытаемся использовать OpenAI embeddings (может быть недоступен)
-      embeddingConfig = {
-        apiUrl: process.env.OPENAI_EMBEDDING_URL || 'https://api.openai.com/v1/embeddings',
-        apiKey: process.env.OPENAI_API_KEY,
-        model: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
-      };
     } else {
-      throw new Error('Не найден API ключ для эмбеддингов. Установите один из: CUSTOM_EMBEDDING_URL, HUGGINGFACE_API_KEY, LM_STUDIO_URL, DEEPSEEK_API_KEY или OPENAI_API_KEY');
+      // Используем Hugging Face Inference Providers API
+      // Документация: https://huggingface.co/docs/inference-providers/index
+      if (!process.env.HF_TOKEN) {
+        throw new Error('Не найден API ключ для эмбеддингов. Установите переменную окружения HF_TOKEN');
+      }
+      // Используем модель, которая точно доступна через Inference Providers
+      const defaultModel = 'sentence-transformers/all-MiniLM-L6-v2';
+      embeddingConfig = {
+        apiKey: process.env.HF_TOKEN,
+        model: defaultModel,
+      };
     }
 
     this.indexer = new DocumentIndexer({

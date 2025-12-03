@@ -30,32 +30,11 @@ YANDEX_API_KEY=your_yandex_api_key
 YANDEX_FOLDER_ID=your_yandex_folder_id
 
 # Для эмбеддингов (обязательно для работы RAG)
-# Приоритет: CUSTOM_EMBEDDING_URL > HUGGINGFACE_API_KEY > LM_STUDIO_URL > DEEPSEEK_API_KEY > OPENAI_API_KEY
-
-# Вариант 1: Кастомный OpenAI-совместимый API (наивысший приоритет)
-CUSTOM_EMBEDDING_URL=https://your-api.com/v1/embeddings
-CUSTOM_EMBEDDING_API_KEY=your_api_key  # опционально
-
-# Вариант 2: Hugging Face Inference Providers API (рекомендуется если OpenAI/DeepSeek недоступны)
+# Используется Hugging Face Inference Providers API
 # Документация: https://huggingface.co/docs/inference-providers/index
-HUGGINGFACE_API_KEY=your_huggingface_token
-# или используйте HF_TOKEN (эквивалентно)
 HF_TOKEN=your_huggingface_token
-HUGGINGFACE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2  # опционально, по умолчанию sentence-transformers/all-MiniLM-L6-v2
-HUGGINGFACE_PROVIDER=hf-inference  # опционально, по умолчанию hf-inference (можно использовать 'auto', 'nebius', 'sambanova' и т.д.)
 # Получить токен: https://huggingface.co/settings/tokens
-# Популярные модели: sentence-transformers/all-MiniLM-L6-v2, intfloat/multilingual-e5-base, BAAI/bge-small-en-v1.5
-
-# Вариант 3: Локальный LM Studio (для локальной разработки)
-LM_STUDIO_URL=http://localhost:1234/v1/embeddings
-LM_STUDIO_API_KEY=lm-studio
-LM_STUDIO_EMBEDDING_MODEL=text-embedding-nomic-embed-text-v1.5
-
-# Вариант 4: DeepSeek embeddings (может не работать)
-DEEPSEEK_EMBEDDING_MODEL=deepseek-embedding  # опционально
-
-# Вариант 5: OpenAI embeddings (может быть недоступен в некоторых странах)
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small  # опционально
+# Используется модель: sentence-transformers/all-MiniLM-L6-v2 (по умолчанию)
 ```
 
 ## Использование
@@ -158,7 +137,7 @@ cli-assistant/
 
 - Node.js 18+
 - Git (для работы с git-репозиторием)
-- LM Studio или другой OpenAI-совместимый API для эмбеддингов (опционально, можно использовать облачные сервисы)
+- HF_TOKEN для Hugging Face Inference Providers API (обязательно для работы RAG)
 
 ## Поддерживаемые форматы документов
 
