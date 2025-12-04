@@ -72,7 +72,6 @@ export class DocumentIndexer {
             }
           );
         } catch (error) {
-          console.warn('Не удалось сгенерировать эмбеддинги, используем текстовый поиск:', error.message);
           this.skipEmbeddings = true;
           embeddings = [];
         }
@@ -217,7 +216,6 @@ export class DocumentIndexer {
       }));
     } catch (error) {
       // Fallback: простой текстовый поиск если эмбеддинги недоступны
-      console.warn('Эмбеддинги недоступны, используем текстовый поиск:', error.message);
       this.skipEmbeddings = true; // Помечаем, чтобы не пытаться снова
       return this.textSearch(query, topK);
     }

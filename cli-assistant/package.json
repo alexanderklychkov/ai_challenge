@@ -12,6 +12,7 @@
     "index": "node scripts/index-docs.js"
   },
   "dependencies": {
+    "@doist/todoist-api-typescript": "^6.1.7",
     "@huggingface/inference": "^4.13.4",
     "@modelcontextprotocol/sdk": "^1.22.0",
     "@octokit/rest": "^20.1.2",

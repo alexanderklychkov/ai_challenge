@@ -63,6 +63,10 @@ program
 async function startInteractiveMode() {
   console.log(chalk.blue.bold('\n🤖 Dev Assistant CLI\n'));
   console.log(chalk.gray('Введите /help <вопрос> для получения помощи по проекту'));
+  console.log(chalk.gray('Можете задавать вопросы о проекте или работать с задачами:'));
+  console.log(chalk.gray('  - "Покажи задачи с приоритетом high"'));
+  console.log(chalk.gray('  - "Создай задачу..."'));
+  console.log(chalk.gray('  - "Что делать первым?"'));
   console.log(chalk.gray('Введите /exit для выхода\n'));
 
   const assistant = new Assistant();

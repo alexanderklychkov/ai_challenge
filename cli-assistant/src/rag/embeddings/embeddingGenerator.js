@@ -21,7 +21,28 @@ export class EmbeddingGenerator {
     
     // Инициализируем InferenceClient из @huggingface/inference
     // Согласно документации: https://huggingface.co/docs/inference-providers/index
-    this.hfClient = new HfInference(apiKey);
+    // Подавляем вывод библиотеки в консоль (сообщения о выборе провайдера)
+    const originalConsoleLog = console.log;
+    const originalConsoleWarn = console.warn;
+    console.log = (...args) => {
+      // Пропускаем только сообщения о выборе провайдера Hugging Face
+      const message = args.join(' ');
+      if (!message.includes('Defaulting to') && !message.includes('Auto selected provider')) {
+        originalConsoleLog(...args);
+      }
+    };
+    console.warn = (...args) => {
+      const message = args.join(' ');
+      if (!message.includes('Defaulting to') && !message.includes('Auto selected provider')) {
+        originalConsoleWarn(...args);
+      }
+    };
+    try {
+      this.hfClient = new HfInference(apiKey);
+    } finally {
+      console.log = originalConsoleLog;
+      console.warn = originalConsoleWarn;
+    }
     this.model = defaultModel;
     this.dimension = config.dimension || 384; // all-MiniLM-L6-v2 имеет размерность 384
   }
