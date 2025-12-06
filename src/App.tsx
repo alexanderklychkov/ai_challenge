@@ -7,11 +7,12 @@ import { LearningPage } from './components/LearningPage.tsx';
 import { ChatPage } from './pages/ChatPage.tsx';
 import { DocumentViewerPage } from './pages/DocumentViewerPage.tsx';
 import { SupportPage } from './pages/SupportPage.tsx';
+import { ChangelogPage } from './pages/ChangelogPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { SupportButton } from './components/SupportButton.tsx';
-import { Code, BookOpen, LogOut, User, Ticket, X } from 'lucide-react';
+import { Code, BookOpen, LogOut, User, Ticket, X, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getUserTickets, deleteTicket, Ticket as TicketType } from './services/tickets';
 
@@ -24,6 +25,7 @@ function App() {
   const isChatRoute = location.pathname.startsWith('/chat');
   const isLearningRoute = location.pathname.startsWith('/learning');
   const isSupportRoute = location.pathname === '/support';
+  const isChangelogRoute = location.pathname === '/changelog';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -135,10 +137,10 @@ function App() {
           
           {/* Переключатель вида */}
           <div className="h-16 border-b border-[#2a2a3a] flex items-center px-4">
-            <div className="flex gap-2 w-full">
+            <div className="flex gap-2 w-full flex-wrap">
               <Link
                 to="/chat"
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                className={`flex-1 min-w-[80px] px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
                   isChatRoute
                     ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
                     : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
@@ -151,7 +153,7 @@ function App() {
               </Link>
               <Link
                 to="/learning"
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                className={`flex-1 min-w-[80px] px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
                   isLearningRoute
                     ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
                     : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
@@ -160,6 +162,19 @@ function App() {
                 <div className="flex items-center justify-center gap-2">
                   <BookOpen className="w-4 h-4" />
                   Обучение
+                </div>
+              </Link>
+              <Link
+                to="/changelog"
+                className={`flex-1 min-w-[80px] px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                  isChangelogRoute
+                    ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                    : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Changelog
                 </div>
               </Link>
             </div>
@@ -274,6 +289,7 @@ function App() {
             <Route path="/learning/flashcards/:setId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/learning/plan/:planId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
+            <Route path="/changelog" element={<ProtectedRoute><ChangelogPage /></ProtectedRoute>} />
             <Route path="/documents/:fileName" element={<ProtectedRoute><DocumentViewerPage /></ProtectedRoute>} />
           </Routes>
         </div>

@@ -1728,6 +1728,158 @@ app.delete('/api/support/tickets/:ticketId', authenticateToken, async (req, res)
   }
 });
 
+// Эндпоинт для генерации changelog из коммитов GitHub
+app.post('/api/changelog/generate', authenticateToken, async (req, res) => {
+  try {
+    const {
+      since,
+      until,
+      branch = 'main',
+      modelType = 'deepseek',
+      model,
+      temperature = 0.3,
+      max_tokens = 4000,
+      format = 'markdown', // markdown или json
+    } = req.body;
+
+    if (!modelType) {
+      return res.status(400).json({ error: 'modelType обязателен' });
+    }
+
+    // Получаем коммиты через changelog MCP сервер
+    const { callTool } = await import('./mcp/orchestrator.js');
+    
+    console.log('Получение коммитов для changelog:', { since, until, branch });
+    
+    const commitsResult = await callTool('generateChangelog', {
+      since,
+      until,
+      branch,
+    }, 'changelog-mcp-server', true);
+
+    const actualResult = commitsResult?.result !== undefined ? commitsResult.result : commitsResult;
+    
+    if (!actualResult || !actualResult.commits || actualResult.commits.length === 0) {
+      return res.status(404).json({ 
+        error: 'Коммиты не найдены',
+        message: 'Проверьте параметры since, until и branch' 
+      });
+    }
+
+    const { commits, metadata } = actualResult;
+
+    // Формируем промпт для LLM
+    const commitsText = commits.map((commit, index) => {
+      return `${index + 1}. ${commit.message} (${commit.author}, ${new Date(commit.date).toLocaleDateString('ru-RU')})`;
+    }).join('\n');
+
+    const systemPrompt = `Ты помощник для генерации changelog. Проанализируй список коммитов и создай структурированный changelog в формате ${format === 'markdown' ? 'Markdown' : 'JSON'}.
+
+Структура changelog должна включать:
+- Заголовок с версией или датой
+- Разделы по типам изменений (Added, Changed, Fixed, Removed, Security и т.д.)
+- Краткие описания изменений на основе сообщений коммитов
+- Группировку похожих изменений
+
+Формат должен быть профессиональным и понятным для пользователей.`;
+
+    const userPrompt = `Создай changelog на основе следующих коммитов (всего ${commits.length} коммитов):
+
+${commitsText}
+
+Период: с ${metadata.since} до ${metadata.until}
+Ветка: ${metadata.branch}
+
+Создай структурированный changelog в формате ${format}.`;
+
+    // Вызываем LLM для генерации changelog
+    const llmCaller = async (prompt, historyMessages) => {
+      const requestBody = {
+        messages: historyMessages.length > 0 
+          ? historyMessages 
+          : [{ role: 'user', content: prompt }],
+        system_prompt: systemPrompt,
+        model: model || undefined,
+        temperature: temperature,
+        max_tokens: max_tokens,
+      };
+
+      let handler;
+      switch (modelType.toLowerCase()) {
+        case 'deepseek':
+          handler = handleDeepSeek;
+          break;
+        case 'yandex':
+        case 'yandexgpt':
+          handler = handleYandexGPT;
+          break;
+        case 'chatgpt':
+        case 'openai':
+          handler = handleChatGPT;
+          break;
+        case 'huggingface':
+          handler = handleHuggingFace;
+          break;
+        default:
+          throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
+      }
+
+      return new Promise((resolve, reject) => {
+        const mockReq = { body: requestBody };
+        const mockRes = {
+          json: (data) => resolve(data),
+          status: (code) => ({
+            json: (data) => reject(new Error(data.error || `HTTP ${code}`)),
+          }),
+        };
+
+        handler(mockReq, mockRes).catch(reject);
+      });
+    };
+
+    const llmResponse = await llmCaller(userPrompt, []);
+
+    // Извлекаем текст из ответа LLM
+    const changelogText = llmResponse?.text || llmResponse?.content || llmResponse?.message || 'Не удалось сгенерировать changelog';
+
+    res.json({
+      changelog: changelogText,
+      metadata: {
+        ...metadata,
+        commitsCount: commits.length,
+        generatedAt: new Date().toISOString(),
+        format,
+        modelType,
+      },
+      commits: commits.map(c => ({
+        sha: c.sha.substring(0, 7),
+        message: c.message,
+        author: c.author,
+        date: c.date,
+        url: c.url,
+      })),
+    });
+  } catch (error) {
+    console.error('Ошибка при генерации changelog:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Эндпоинт для получения тегов репозитория
+app.get('/api/changelog/tags', authenticateToken, async (req, res) => {
+  try {
+    const { callTool } = await import('./mcp/orchestrator.js');
+    
+    const tagsResult = await callTool('getTags', {}, 'changelog-mcp-server', true);
+    const actualResult = tagsResult?.result !== undefined ? tagsResult.result : tagsResult;
+    
+    res.json(actualResult || []);
+  } catch (error) {
+    console.error('Ошибка при получении тегов:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   

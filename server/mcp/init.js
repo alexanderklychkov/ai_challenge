@@ -9,6 +9,7 @@ import { initializeArticleMCP, getArticleMCPTools, callArticleMCPTool } from './
 import { initializeLearningMCP, getLearningMCPTools, callLearningMCPTool } from './servers/learningMCP.js';
 import { initializeGitHubMCP, getGitHubMCPTools, callGitHubMCPTool } from './servers/githubMCP.js';
 import { initializeCRMMCP, getCRMMCPTools, callCRMMCPTool } from './servers/crmMCP.js';
+import { initializeChangelogMCP, getChangelogMCPTools, callChangelogMCPTool } from './servers/changelogMCP.js';
 
 /**
  * Инициализирует и регистрирует все доступные MCP серверы
@@ -28,6 +29,9 @@ export function initializeAllMCPServers() {
   
   // Регистрируем CRM MCP сервер
   initializeCRMMCP(); // Это автоматически зарегистрирует сервер в оркестраторе
+  
+  // Регистрируем Changelog MCP сервер
+  initializeChangelogMCP(); // Это автоматически зарегистрирует сервер в оркестраторе
   
   // Здесь можно добавить регистрацию других серверов
   // Например, внешние MCP серверы через HTTP или другие протоколы
