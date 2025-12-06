@@ -11,7 +11,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { SupportButton } from './components/SupportButton.tsx';
-import { Code, BookOpen, LogOut, User, Ticket, X } from 'lucide-react';
+import { Code, BookOpen, LogOut, User, Ticket, X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getUserTickets, deleteTicket, Ticket as TicketType } from './services/tickets';
 
@@ -21,11 +21,24 @@ function App() {
   const [chatListRefreshTrigger, setChatListRefreshTrigger] = useState(0);
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   const isChatRoute = location.pathname.startsWith('/chat');
   const isLearningRoute = location.pathname.startsWith('/learning');
   const isSupportRoute = location.pathname === '/support';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Сохраняем состояние панели в localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
   // Загружаем тикеты при авторизации
   const loadTickets = useCallback(() => {
@@ -129,44 +142,75 @@ function App() {
       
       <div className="relative z-10 flex w-full">
         {/* Панель с чатами слева */}
-        <aside className="hidden md:flex flex-col w-[280px] border-r border-[#2a2a3a] bg-[#151520]/80 backdrop-blur-xl relative">
+        <aside className={`hidden md:flex flex-col border-r border-[#2a2a3a] bg-[#151520]/80 backdrop-blur-xl relative transition-all duration-300 ${
+          sidebarCollapsed ? 'w-16' : 'w-[280px]'
+        }`}>
           {/* Градиентная линия сверху */}
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#00f0ff] to-transparent"></div>
           
           {/* Переключатель вида */}
-          <div className="h-16 border-b border-[#2a2a3a] flex items-center px-4">
-            <div className="flex gap-2 w-full">
-              <Link
-                to="/chat"
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
-                  isChatRoute
-                    ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
-                    : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Code className="w-4 h-4" />
-                  Чат
-                </div>
-              </Link>
-              <Link
-                to="/learning"
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
-                  isLearningRoute
-                    ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
-                    : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <BookOpen className="w-4 h-4" />
-                  Обучение
-                </div>
-              </Link>
-            </div>
+          <div className={`border-b border-[#2a2a3a] flex transition-all duration-300 ${
+            sidebarCollapsed ? 'px-2 py-2 flex-col gap-2' : 'h-16 px-4 items-center'
+          }`}>
+            {sidebarCollapsed ? (
+              <>
+                <Link
+                  to="/chat"
+                  className={`w-full h-10 flex items-center justify-center rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                    isChatRoute
+                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                  }`}
+                  title="Чат"
+                >
+                  <Code className="w-5 h-5" />
+                </Link>
+                <Link
+                  to="/learning"
+                  className={`w-full h-10 flex items-center justify-center rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                    isLearningRoute
+                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                  }`}
+                  title="Обучение"
+                >
+                  <BookOpen className="w-5 h-5" />
+                </Link>
+              </>
+            ) : (
+              <div className="flex gap-2 w-full">
+                <Link
+                  to="/chat"
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                    isChatRoute
+                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Чат
+                  </div>
+                </Link>
+                <Link
+                  to="/learning"
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                    isLearningRoute
+                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                  }`}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    Обучение
+                  </div>
+                </Link>
+              </div>
+            )}
           </div>
           
           {/* Список чатов (только для режима чата) */}
-          {isChatRoute && (
+          {isChatRoute && !sidebarCollapsed && (
             <div className="flex-1 overflow-hidden">
               <ChatList 
                 refreshTrigger={chatListRefreshTrigger}
@@ -175,14 +219,14 @@ function App() {
           )}
           
           {/* Список обучений (только для режима обучения) */}
-          {isLearningRoute && (
+          {isLearningRoute && !sidebarCollapsed && (
             <div className="flex-1 overflow-hidden">
               <LearningList />
             </div>
           )}
 
           {/* Список тикетов (только для режима поддержки) */}
-          {isSupportRoute && (
+          {isSupportRoute && !sidebarCollapsed && (
             <div className="flex-1 overflow-hidden flex flex-col">
               <div className="px-4 py-3 border-b border-[#2a2a3a]">
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -239,23 +283,70 @@ function App() {
             </div>
           )}
           
+          {/* Плейсхолдер когда панель свернута */}
+          {(isChatRoute || isLearningRoute || isSupportRoute) && sidebarCollapsed && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-[#808080] text-xs text-center px-2">
+                <Menu className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                <div>Панель свернута</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Кнопка сворачивания */}
+          <div className={`border-t border-[#2a2a3a] transition-all duration-300 ${
+            sidebarCollapsed ? 'px-2 py-2' : 'px-4 py-2'
+          }`}>
+            <button
+              onClick={toggleSidebar}
+              className={`w-full p-2 rounded-lg bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a] transition-all border border-[#2a2a3a] hover:border-[#00f0ff]/50 flex items-center justify-center gap-2 ${
+                sidebarCollapsed ? 'justify-center' : ''
+              }`}
+              title={sidebarCollapsed ? 'Развернуть панель' : 'Свернуть панель'}
+            >
+              {sidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <>
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="text-xs">Свернуть</span>
+                </>
+              )}
+            </button>
+          </div>
+
           {/* Информация о пользователе внизу */}
           {user && (
-            <div className="h-16 px-4 border-t border-[#2a2a3a] flex items-center gap-3">
+            <div className={`h-16 border-t border-[#2a2a3a] flex items-center transition-all duration-300 ${
+              sidebarCollapsed ? 'px-2 justify-center' : 'px-4 gap-3'
+            }`}>
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#0066ff] to-[#8000cc] flex items-center justify-center flex-shrink-0">
                 <User className="w-4 h-4 text-white" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">{user.name}</div>
-                <div className="text-xs text-[#a0a0b0] truncate">{user.email}</div>
-              </div>
-              <button
-                onClick={logout}
-                className="p-2 text-[#a0a0b0] hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-colors flex-shrink-0"
-                title="Выйти"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              {!sidebarCollapsed && (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white truncate">{user.name}</div>
+                    <div className="text-xs text-[#a0a0b0] truncate">{user.email}</div>
+                  </div>
+                  <button
+                    onClick={logout}
+                    className="p-2 text-[#a0a0b0] hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-colors flex-shrink-0"
+                    title="Выйти"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+              {sidebarCollapsed && (
+                <button
+                  onClick={logout}
+                  className="p-2 text-[#a0a0b0] hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-colors flex-shrink-0 ml-auto"
+                  title="Выйти"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
             </div>
           )}
           
@@ -273,6 +364,7 @@ function App() {
             <Route path="/learning/test/:testId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/learning/flashcards/:setId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/learning/plan/:planId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
+            <Route path="/learning/course/:courseId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
             <Route path="/documents/:fileName" element={<ProtectedRoute><DocumentViewerPage /></ProtectedRoute>} />
           </Routes>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { loadTests, loadFlashcardSets, loadStudyPlans, type Test, type FlashcardSet, type StudyPlan } from '../services/learning';
+import { loadCourses, type Course } from '../services/courses';
 import { loadChats, type Chat } from '../services/storage';
-import { FileText, CreditCard, Calendar, BookOpen, MessageSquare, ChevronRight } from 'lucide-react';
+import { FileText, CreditCard, Calendar, BookOpen, MessageSquare, ChevronRight, GraduationCap } from 'lucide-react';
 
 interface LearningListProps {
   refreshTrigger?: number;
@@ -10,7 +11,7 @@ interface LearningListProps {
 
 interface LearningItem {
   id: string;
-  type: 'test' | 'flashcard' | 'plan';
+  type: 'test' | 'flashcard' | 'plan' | 'course';
   title: string;
   chatId?: string;
   chatTitle?: string;
@@ -36,6 +37,9 @@ export function LearningList({ refreshTrigger }: LearningListProps) {
     const planMatch = location.pathname.match(/^\/learning\/plan\/(.+)$/);
     if (planMatch) return { id: planMatch[1], type: 'plan' as const };
     
+    const courseMatch = location.pathname.match(/^\/learning\/course\/(.+)$/);
+    if (courseMatch) return { id: courseMatch[1], type: 'course' as const };
+    
     return null;
   };
 
@@ -48,10 +52,11 @@ export function LearningList({ refreshTrigger }: LearningListProps) {
   const loadAllData = async () => {
     setIsLoading(true);
     try {
-      const [loadedTests, loadedSets, loadedPlans, loadedChats] = await Promise.all([
+      const [loadedTests, loadedSets, loadedPlans, loadedCourses, loadedChats] = await Promise.all([
         loadTests(),
         loadFlashcardSets(),
         loadStudyPlans(),
+        loadCourses(),
         loadChats(),
       ]);
 
@@ -87,6 +92,16 @@ export function LearningList({ refreshTrigger }: LearningListProps) {
           type: 'plan',
           title: plan.title,
           chatId: plan.chatId,
+        });
+      });
+
+      // Добавляем курсы
+      loadedCourses.forEach((course: Course) => {
+        items.push({
+          id: course.id,
+          type: 'course',
+          title: course.title,
+          chatId: course.chatId,
         });
       });
 
@@ -133,6 +148,8 @@ export function LearningList({ refreshTrigger }: LearningListProps) {
       navigate(`/learning/flashcards/${item.id}`);
     } else if (item.type === 'plan') {
       navigate(`/learning/plan/${item.id}`);
+    } else if (item.type === 'course') {
+      navigate(`/learning/course/${item.id}`);
     }
   };
 
@@ -148,6 +165,8 @@ export function LearningList({ refreshTrigger }: LearningListProps) {
         return <CreditCard className="w-4 h-4" />;
       case 'plan':
         return <Calendar className="w-4 h-4" />;
+      case 'course':
+        return <GraduationCap className="w-4 h-4" />;
     }
   };
 

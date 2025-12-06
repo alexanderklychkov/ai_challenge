@@ -12,6 +12,7 @@ const TESTS_FILE = resolve(DATA_DIR, 'tests.json');
 const ANKI_CARDS_FILE = resolve(DATA_DIR, 'anki-cards.json');
 const STUDY_PLANS_FILE = resolve(DATA_DIR, 'study-plans.json');
 const FLASHCARDS_FILE = resolve(DATA_DIR, 'flashcards.json');
+const COURSES_FILE = resolve(DATA_DIR, 'courses.json');
 
 /**
  * Инициализирует директорию для данных обучения, если её нет
@@ -333,6 +334,103 @@ export async function saveFlashcards(cards, topic, chatId) {
     };
   } catch (error) {
     console.error('Ошибка при сохранении флеш-карточек:', error);
+    throw error;
+  }
+}
+
+/**
+ * Загружает курсы из JSON файла
+ * @returns {Promise<Array>} Массив курсов
+ */
+export async function loadCourses() {
+  try {
+    await ensureDataDir();
+    
+    if (!existsSync(COURSES_FILE)) {
+      return [];
+    }
+
+    const fileContent = await readFile(COURSES_FILE, 'utf-8');
+    return JSON.parse(fileContent);
+  } catch (error) {
+    console.error('Ошибка при загрузке курсов:', error);
+    return [];
+  }
+}
+
+/**
+ * Сохраняет курс
+ * @param {Object} course - Объект курса
+ * @returns {Promise<Object>} Сохраненный курс
+ */
+export async function saveCourse(course) {
+  try {
+    await ensureDataDir();
+    
+    const courses = await loadCourses();
+    const courseId = course.id || `course-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const courseToSave = {
+      ...course,
+      id: courseId,
+      modules: course.modules || [],
+      progress: course.progress || 0,
+      completed: course.completed || false,
+      createdAt: course.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    const existingIndex = courses.findIndex(c => c.id === courseId);
+    if (existingIndex >= 0) {
+      courses[existingIndex] = courseToSave;
+    } else {
+      courses.push(courseToSave);
+    }
+    
+    await writeFile(COURSES_FILE, JSON.stringify(courses, null, 2), 'utf-8');
+    return courseToSave;
+  } catch (error) {
+    console.error('Ошибка при сохранении курса:', error);
+    throw error;
+  }
+}
+
+/**
+ * Получает курс по ID
+ * @param {string} courseId - ID курса
+ * @returns {Promise<Object|null>} Курс или null
+ */
+export async function getCourse(courseId) {
+  try {
+    const courses = await loadCourses();
+    return courses.find(c => c.id === courseId) || null;
+  } catch (error) {
+    console.error('Ошибка при получении курса:', error);
+    return null;
+  }
+}
+
+/**
+ * Удаляет курс
+ * @param {string} courseId - ID курса
+ * @returns {Promise<boolean>} true если удален успешно
+ */
+export async function deleteCourse(courseId) {
+  try {
+    await ensureDataDir();
+    
+    const courses = await loadCourses();
+    const initialLength = courses.length;
+    const filteredCourses = courses.filter(c => c.id !== courseId);
+    
+    if (filteredCourses.length === initialLength) {
+      return false; // Курс не найден
+    }
+    
+    await writeFile(COURSES_FILE, JSON.stringify(filteredCourses, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    console.error('Ошибка при удалении курса:', error);
     throw error;
   }
 }

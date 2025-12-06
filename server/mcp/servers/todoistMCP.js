@@ -165,11 +165,23 @@ export async function callTodoistMCPTool(toolName, args) {
       if (result && result.content && Array.isArray(result.content)) {
         const textContent = result.content.find(c => c.type === 'text');
         if (textContent) {
-          // Пытаемся распарсить JSON, если это возможно
+          const text = textContent.text;
+          
+          // Проверяем, является ли весь текст валидным JSON
           try {
-            return JSON.parse(textContent.text);
+            return JSON.parse(text);
           } catch {
-            return textContent.text;
+            // Если не валидный JSON, пытаемся найти JSON объект внутри строки
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                return JSON.parse(jsonMatch[0]);
+              } catch {
+                // Если не удалось распарсить, возвращаем исходный текст
+                return text;
+              }
+            }
+            return text;
           }
         }
       }
@@ -190,10 +202,23 @@ export async function callTodoistMCPTool(toolName, args) {
         if (result && result.content && Array.isArray(result.content)) {
           const textContent = result.content.find(c => c.type === 'text');
           if (textContent) {
+            const text = textContent.text;
+            
+            // Проверяем, является ли весь текст валидным JSON
             try {
-              return JSON.parse(textContent.text);
+              return JSON.parse(text);
             } catch {
-              return textContent.text;
+              // Если не валидный JSON, пытаемся найти JSON объект внутри строки
+              const jsonMatch = text.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                try {
+                  return JSON.parse(jsonMatch[0]);
+                } catch {
+                  // Если не удалось распарсить, возвращаем исходный текст
+                  return text;
+                }
+              }
+              return text;
             }
           }
         }

@@ -13,6 +13,7 @@ import {
   loadStudyPlans,
   saveFlashcards,
   loadFlashcards,
+  saveCourse,
 } from '../../utils/learningStorage.js';
 
 /**
@@ -814,6 +815,180 @@ export function registerLearningTools(server) {
                 createdAt: t.createdAt,
               })),
               count: filteredTests.length,
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error.message,
+            }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
+  });
+
+  /**
+   * Генерирует курс по разработке
+   */
+  server.registerTool('generateCourse', {
+    description: 'Генерирует полноценный курс по разработке с модулями разных типов: теория, тесты, практические задания и проекты. Курс структурирован по этапам обучения.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Тема курса (например, "React", "Node.js", "Python", "TypeScript")',
+        },
+        difficulty: {
+          type: 'string',
+          enum: ['beginner', 'intermediate', 'advanced'],
+          description: 'Уровень сложности курса',
+        },
+        duration: {
+          type: 'number',
+          description: 'Продолжительность курса в днях',
+          default: 7,
+        },
+        description: {
+          type: 'string',
+          description: 'Описание курса (опционально)',
+        },
+        modules: {
+          type: 'array',
+          description: 'Массив модулей курса. Если не указан, будет создан автоматически.',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'ID модуля',
+              },
+              type: {
+                type: 'string',
+                enum: ['theory', 'test', 'practice', 'project'],
+                description: 'Тип модуля: theory (теория), test (тест), practice (практика), project (проект)',
+              },
+              title: {
+                type: 'string',
+                description: 'Название модуля',
+              },
+              order: {
+                type: 'number',
+                description: 'Порядковый номер модуля',
+              },
+              content: {
+                type: 'string',
+                description: 'Содержимое модуля (для теории)',
+              },
+              testId: {
+                type: 'string',
+                description: 'ID теста (для модуля типа test)',
+              },
+              practiceTask: {
+                type: 'string',
+                description: 'Описание практического задания (для модуля типа practice)',
+              },
+              practiceSolution: {
+                type: 'string',
+                description: 'Решение практического задания (опционально)',
+              },
+              projectDescription: {
+                type: 'string',
+                description: 'Описание проекта (для модуля типа project)',
+              },
+              projectRequirements: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
+                description: 'Требования к проекту',
+              },
+              estimatedTime: {
+                type: 'string',
+                description: 'Оценка времени на прохождение модуля',
+              },
+            },
+            required: ['type', 'title', 'order'],
+          },
+        },
+      },
+      required: ['topic', 'difficulty'],
+    },
+  }, async (args) => {
+    try {
+      const { topic, difficulty, duration = 7, description = '', modules } = args;
+
+      if (!topic || !difficulty) {
+        throw new Error('Тема и уровень сложности обязательны');
+      }
+
+      let courseModules = modules || [];
+
+      // Если модули не предоставлены, возвращаем структуру для AI
+      if (courseModules.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'Модули курса не предоставлены. Используйте AI для создания структуры курса, затем вызовите generateCourse снова с заполненным массивом modules.',
+                topic,
+                difficulty,
+                duration,
+                suggestedStructure: {
+                  example: {
+                    id: 'module-1',
+                    type: 'theory',
+                    title: 'Введение в тему',
+                    order: 1,
+                    content: 'Теоретический материал...',
+                    estimatedTime: '1 час',
+                  },
+                },
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Сортируем модули по порядку
+      courseModules.sort((a, b) => a.order - b.order);
+
+      // Вычисляем прогресс
+      const completedModules = courseModules.filter(m => m.completed).length;
+      const progress = Math.round((completedModules / courseModules.length) * 100);
+
+      const course = {
+        title: `Курс по ${topic}`,
+        description: description || `Комплексный курс по ${topic} для уровня ${difficulty}`,
+        topic,
+        difficulty,
+        duration,
+        modules: courseModules,
+        progress,
+        completed: progress === 100,
+        createdAt: new Date().toISOString(),
+      };
+
+      const savedCourse = await saveCourse(course);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              course: savedCourse,
+              courseId: savedCourse.id,
+              message: `Курс "${savedCourse.title}" успешно создан. ID курса: ${savedCourse.id}. Курс содержит ${courseModules.length} модулей.`,
             }, null, 2),
           },
         ],
