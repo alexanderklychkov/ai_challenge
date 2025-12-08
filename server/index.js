@@ -8,6 +8,7 @@ import { handleYandexGPT } from './handlers/yandexGPT.js';
 import { handleDeepSeek } from './handlers/deepSeek.js';
 import { handleChatGPT } from './handlers/chatGPT.js';
 import { handleHuggingFace } from './handlers/huggingFace.js';
+import { handleLMStudio, getLMStudioModels } from './handlers/lmStudio.js';
 import { loadMessages, saveMessages, clearMessages } from './utils/storage.js';
 import { 
   loadChats, 
@@ -78,6 +79,8 @@ app.post('/api/yandex-gpt', handleYandexGPT);
 app.post('/api/deepseek', handleDeepSeek);
 app.post('/api/chatgpt', handleChatGPT);
 app.post('/api/huggingface', handleHuggingFace);
+app.post('/api/lmstudio', handleLMStudio);
+app.get('/api/lmstudio/models', getLMStudioModels);
 
 // Эндпоинты для работы с чатами (требуют авторизации)
 app.get('/api/chats', authenticateToken, async (req, res) => {
@@ -1983,6 +1986,10 @@ app.post('/api/rag/compare', async (req, res) => {
           handler = handleHuggingFace;
           apiUrl = '/api/huggingface';
           break;
+        case 'lmstudio':
+          handler = handleLMStudio;
+          apiUrl = '/api/lmstudio';
+          break;
         default:
           throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
       }
@@ -2079,6 +2086,9 @@ app.post('/api/rag/query', async (req, res) => {
           break;
         case 'huggingface':
           handler = handleHuggingFace;
+          break;
+        case 'lmstudio':
+          handler = handleLMStudio;
           break;
         default:
           throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
@@ -2180,6 +2190,9 @@ app.post('/api/rag/compare-reranker', async (req, res) => {
           break;
         case 'huggingface':
           handler = handleHuggingFace;
+          break;
+        case 'lmstudio':
+          handler = handleLMStudio;
           break;
         default:
           throw new Error(`Неподдерживаемый тип модели: ${modelType}`);
@@ -2333,6 +2346,9 @@ app.post('/api/support/query', authenticateToken, async (req, res) => {
           break;
         case 'huggingface':
           handler = handleHuggingFace;
+          break;
+        case 'lmstudio':
+          handler = handleLMStudio;
           break;
         default:
           throw new Error(`Неподдерживаемый тип модели: ${modelType}`);

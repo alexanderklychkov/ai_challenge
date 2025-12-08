@@ -8,6 +8,7 @@ import { handleDeepSeek } from '../handlers/deepSeek.js';
 import { handleChatGPT } from '../handlers/chatGPT.js';
 import { handleYandexGPT } from '../handlers/yandexGPT.js';
 import { handleHuggingFace } from '../handlers/huggingFace.js';
+import { handleLMStudio } from '../handlers/lmStudio.js';
 import { loadUserMessages, saveUserMessages, clearUserMessages } from '../utils/telegramStorage.js';
 import { getUserModel, setUserModel, getUserMCP } from '../utils/telegramUserSettings.js';
 import { subscribeUser, unsubscribeUser, isUserSubscribed, getSubscribedUsers } from '../utils/telegramReminders.js';
@@ -156,6 +157,12 @@ async function getAIResponse(userId, userMessage, modelName = DEFAULT_MODEL, ena
       requestBody.messages = aiMessages;
       requestBody.model = process.env.HUGGINGFACE_MODEL;
       break;
+    case 'lmstudio':
+      handler = handleLMStudio;
+      aiMessages = convertTelegramMessagesToAIFormat([...userMessages, newUserMessage]);
+      requestBody.messages = aiMessages;
+      requestBody.model = process.env.LM_STUDIO_MODEL || 'mistralai/ministral-3-3b';
+      break;
     default:
       handler = handleDeepSeek;
       aiMessages = convertTelegramMessagesToAIFormat([...userMessages, newUserMessage]);
@@ -245,6 +252,10 @@ ${tasksSummary}
       case 'huggingface':
         handler = handleHuggingFace;
         requestBody.model = process.env.HUGGINGFACE_MODEL;
+        break;
+      case 'lmstudio':
+        handler = handleLMStudio;
+        requestBody.model = process.env.LM_STUDIO_MODEL || 'mistralai/ministral-3-3b';
         break;
       default:
         handler = handleDeepSeek;

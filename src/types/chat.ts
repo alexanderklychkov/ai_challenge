@@ -1,6 +1,6 @@
 export type ModelMode = 'parallel' | 'chain' | 'chain-fast';
 
-export type AgentType = 'deepseek' | 'huggingface' | 'yandex' | 'chatgpt';
+export type AgentType = 'deepseek' | 'huggingface' | 'yandex' | 'chatgpt' | 'lmstudio';
 
 export interface AgentConfig {
   id: string;

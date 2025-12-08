@@ -317,7 +317,7 @@ function App() {
 
           {/* Информация о пользователе внизу */}
           {user && (
-            <div className={`h-16 border-t border-[#2a2a3a] flex items-center transition-all duration-300 ${
+            <div className={`h-16 border-t border-[#2a2a3a] flex items-center transition-all duration-300 mt-2 ${
               sidebarCollapsed ? 'px-2 justify-center' : 'px-4 gap-3'
             }`}>
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#0066ff] to-[#8000cc] flex items-center justify-center flex-shrink-0">

@@ -8,6 +8,7 @@ import { createYandexGPTModel } from '../services/yandexGPT';
 import { createHuggingFaceModel } from '../services/huggingFace';
 import { createDeepSeekModel } from '../services/deepSeek';
 import { createChatGPTModel } from '../services/chatGPT';
+import { createLMStudioModel } from '../services/lmStudio';
 import { loadChats, createChat, updateChatSettings } from '../services/storage';
 import { Chat, ChatSettings as ChatSettingsType, AgentConfig } from '../types/chat';
 
@@ -118,6 +119,9 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
             break;
           case 'chatgpt':
             model = createChatGPTModel(config);
+            break;
+          case 'lmstudio':
+            model = createLMStudioModel(config);
             break;
           default:
             model = createDeepSeekModel(config);

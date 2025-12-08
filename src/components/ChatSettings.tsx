@@ -29,6 +29,7 @@ const AGENT_TYPES: { value: AgentType; label: string }[] = [
   { value: 'huggingface', label: 'HuggingFace' },
   { value: 'yandex', label: 'Yandex GPT' },
   { value: 'chatgpt', label: 'ChatGPT' },
+  { value: 'lmstudio', label: 'LM Studio (локальная)' },
 ];
 
 const MODEL_PRESETS: Record<AgentType, { value: string; label: string }[]> = {
@@ -51,6 +52,10 @@ const MODEL_PRESETS: Record<AgentType, { value: string; label: string }[]> = {
     { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
     { value: 'gpt-4', label: 'GPT-4' },
     { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+  ],
+  lmstudio: [
+    { value: '__auto__', label: 'Автоматический выбор (первая доступная)' },
+    { value: 'mistralai/ministral-3-3b', label: 'Mistral MiniStral 3B' },
   ],
 };
 
