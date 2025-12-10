@@ -1,60 +1,55 @@
 /**
- * Реализация LM Studio модели (локальная модель)
+ * Реализация Ollama модели (локальная модель)
  */
 
 import { AIModel, AIModelConfig } from './aiModel';
 
 /**
- * Конфигурация для LM Studio модели
+ * Конфигурация для Ollama модели
  */
-export interface LMStudioConfig extends AIModelConfig {
-  model?: string; // Название модели в LM Studio (например, 'mistralai/ministral-3-3b')
-  directUrl?: string; // Прямой URL к LM Studio для офлайн работы (например, 'http://localhost:1234/v1')
-  enableOffline?: boolean; // Включить офлайн режим (прямое подключение к LM Studio)
+export interface OllamaConfig extends AIModelConfig {
+  model?: string; // Название модели в Ollama (например, 'qwen2.5:0.5b')
+  directUrl?: string; // Прямой URL к Ollama для офлайн работы (например, 'http://localhost:11434')
+  enableOffline?: boolean; // Включить офлайн режим (прямое подключение к Ollama)
 }
 
 /**
- * Реализация LM Studio модели с поддержкой офлайн режима
+ * Реализация Ollama модели с поддержкой офлайн режима
  * 
  * @example
- * const lmStudio = new LMStudioModel({
+ * const ollama = new OllamaModel({
  *   systemPrompt: 'Ты - помощник по программированию',
- *   model: 'mistralai/ministral-3-3b',
- *   enableOffline: true, // Работать напрямую с LM Studio, минуя сервер
+ *   model: 'qwen2.5:0.5b',
+ *   enableOffline: false, // Работать через сервер
  * });
  */
-export class LMStudioModel extends AIModel {
+export class OllamaModel extends AIModel {
   private directUrl: string;
   private enableOffline: boolean;
 
-  constructor(config: LMStudioConfig = {}) {
+  constructor(config: OllamaConfig = {}) {
     super(
       config,
-      import.meta.env.VITE_LM_STUDIO_PROXY_URL || 'http://localhost:3001/api/lmstudio',
-      config.model || '__auto__' // Автоматический выбор модели из LM Studio
+      import.meta.env.VITE_OLLAMA_PROXY_URL || 'http://localhost:3001/api/ollama',
+      config.model || import.meta.env.VITE_OLLAMA_DEFAULT_MODEL || 'qwen2.5:0.5b'
     );
     
-    // URL для прямого подключения к LM Studio (для офлайн режима)
-    const envDirectUrl = import.meta.env.VITE_LM_STUDIO_DIRECT_URL;
+    // URL для прямого подключения к Ollama (для офлайн режима)
+    const envDirectUrl = import.meta.env.VITE_OLLAMA_DIRECT_URL;
     this.directUrl = config.directUrl || 
                      (envDirectUrl ? String(envDirectUrl) : undefined) || 
-                     'http://localhost:1234/v1';
+                     'http://localhost:11434';
     
     // Включить офлайн режим по умолчанию для локальной модели
-    const envOfflineMode = import.meta.env.VITE_LM_STUDIO_OFFLINE_MODE;
-    // Проверяем явно на 'true' (строка) или true (boolean)
-    // Если переменная не установлена или равна 'true', включаем офлайн режим
-    // Если явно установлено 'false', отключаем
-    const isOfflineModeEnabled = envOfflineMode === undefined || 
-                                 envOfflineMode === 'true' || 
-                                 envOfflineMode === true;
+    const envOfflineMode = import.meta.env.VITE_OLLAMA_OFFLINE_MODE;
+    const isOfflineModeEnabled = envOfflineMode === 'true' || envOfflineMode === true;
     
     this.enableOffline = config.enableOffline !== undefined 
       ? config.enableOffline 
       : isOfflineModeEnabled;
     
     // Отладочная информация
-    console.log('[LMStudioModel] Конфигурация:', {
+    console.log('[OllamaModel] Конфигурация:', {
       directUrl: this.directUrl,
       enableOffline: this.enableOffline,
       envDirectUrl,
@@ -66,7 +61,7 @@ export class LMStudioModel extends AIModel {
 
   /**
    * Переопределяем fetchFromProxy для поддержки офлайн режима
-   * Если сервер недоступен, обращаемся напрямую к LM Studio
+   * Если сервер недоступен, обращаемся напрямую к Ollama
    */
   protected async fetchFromProxy(body: Record<string, any>): Promise<{ 
     text: string;
@@ -76,27 +71,25 @@ export class LMStudioModel extends AIModel {
     cost?: number;
     usedTools?: Array<{ name: string; args?: any; timestamp?: string; error?: string }>;
   }> {
-    console.log('[LMStudioModel] fetchFromProxy вызван, enableOffline:', this.enableOffline);
+    console.log('[OllamaModel] fetchFromProxy вызван, enableOffline:', this.enableOffline);
     
     // Если включен офлайн режим или сервер недоступен, используем прямое подключение
     if (this.enableOffline) {
-      console.log('[LMStudioModel] Офлайн режим включен, используем прямое подключение к', this.directUrl);
+      console.log('[OllamaModel] Офлайн режим включен, используем прямое подключение к', this.directUrl);
       try {
         const result = await this.fetchDirectly(body);
-        console.log('[LMStudioModel] Прямое подключение успешно');
+        console.log('[OllamaModel] Прямое подключение успешно');
         return result;
       } catch (error) {
         // Если прямое подключение не удалось, пробуем через сервер как fallback
-        console.warn('[LMStudioModel] Прямое подключение к LM Studio не удалось, пробуем через сервер:', error);
+        console.warn('[OllamaModel] Прямое подключение к Ollama не удалось, пробуем через сервер:', error);
         try {
           const result = await super.fetchFromProxy(body);
-          console.log('[LMStudioModel] Подключение через сервер успешно');
+          console.log('[OllamaModel] Подключение через сервер успешно');
           return result;
         } catch (serverError) {
-          // Если и сервер недоступен, пробуем снова прямое подключение
-          // Возможно, это просто проблема с CORS или временная недоступность
-          console.error('[LMStudioModel] Оба способа подключения не удались');
-          throw new Error(`Не удалось подключиться к LM Studio. Убедитесь, что LM Studio запущен и доступен по адресу ${this.directUrl}. Ошибка: ${error instanceof Error ? error.message : String(error)}`);
+          console.error('[OllamaModel] Оба способа подключения не удались');
+          throw new Error(`Не удалось подключиться к Ollama. Убедитесь, что Ollama запущен и доступен по адресу ${this.directUrl}. Ошибка: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }
@@ -116,11 +109,11 @@ export class LMStudioModel extends AIModel {
                             ));
       
       if (isNetworkError) {
-        console.warn('Сервер недоступен, пробуем прямое подключение к LM Studio');
+        console.warn('Сервер недоступен, пробуем прямое подключение к Ollama');
         try {
           return await this.fetchDirectly(body);
         } catch (directError) {
-          throw new Error(`Не удалось подключиться ни к серверу, ни к LM Studio напрямую. Убедитесь, что LM Studio запущен и доступен по адресу ${this.directUrl}. Ошибка: ${directError instanceof Error ? directError.message : String(directError)}`);
+          throw new Error(`Не удалось подключиться ни к серверу, ни к Ollama напрямую. Убедитесь, что Ollama запущен и доступен по адресу ${this.directUrl}. Ошибка: ${directError instanceof Error ? directError.message : String(directError)}`);
         }
       }
       throw error;
@@ -128,7 +121,7 @@ export class LMStudioModel extends AIModel {
   }
 
   /**
-   * Прямое подключение к LM Studio (для офлайн режима)
+   * Прямое подключение к Ollama (для офлайн режима)
    */
   private async fetchDirectly(body: Record<string, any>): Promise<{ 
     text: string;
@@ -142,7 +135,8 @@ export class LMStudioModel extends AIModel {
     let modelName = body.model || this.model;
     if (!modelName || modelName === '__auto__') {
       try {
-        const modelsUrl = `${this.directUrl}/models`;
+        const baseUrl = this.directUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+        const modelsUrl = `${baseUrl}/api/tags`;
         const modelsResponse = await fetch(modelsUrl, {
           method: 'GET',
           headers: {
@@ -152,13 +146,10 @@ export class LMStudioModel extends AIModel {
 
         if (modelsResponse.ok) {
           const modelsData = await modelsResponse.json();
-          const availableModels = modelsData.data || [];
+          const availableModels = modelsData.models || [];
           if (availableModels.length > 0) {
-            // Ищем chat модель (не embedding)
-            const chatModel = availableModels.find((m: any) => 
-              m.id && !m.id.toLowerCase().includes('embed')
-            ) || availableModels[0];
-            modelName = chatModel.id;
+            // Берем первую модель
+            modelName = availableModels[0].name;
           }
         }
       } catch (error) {
@@ -166,11 +157,11 @@ export class LMStudioModel extends AIModel {
       }
       
       if (!modelName || modelName === '__auto__') {
-        modelName = 'mistralai/ministral-3-3b';
+        modelName = 'qwen2.5:0.5b';
       }
     }
 
-    // Формируем сообщения в формате OpenAI
+    // Формируем сообщения в формате Ollama
     const messages = (body.messages || []).map((msg: any) => ({
       role: msg.role || 'user',
       content: msg.text || msg.content || '',
@@ -184,14 +175,18 @@ export class LMStudioModel extends AIModel {
       });
     }
 
+    const baseUrl = this.directUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
+    const apiUrl = `${baseUrl}/api/chat`;
+    
     const requestBody = {
       model: modelName,
       messages: messages,
-      temperature: body.temperature || this.config.temperature || 0.3,
-      max_tokens: body.max_tokens || this.config.maxTokens || 2000,
+      options: {
+        temperature: body.temperature || this.config.temperature || 0.7,
+        num_predict: body.max_tokens || this.config.maxTokens || 2000,
+      },
+      stream: false,
     };
-
-    const apiUrl = `${this.directUrl}/chat/completions`;
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -212,33 +207,37 @@ export class LMStudioModel extends AIModel {
         errorMessage = errorText || `HTTP ${response.status}`;
       }
       
-      throw new Error(`LM Studio API error: ${response.status} - ${errorMessage}`);
+      throw new Error(`Ollama API error: ${response.status} - ${errorMessage}`);
     }
 
     const data = await response.json();
     
-    // Извлекаем текст из ответа OpenAI-совместимого формата
-    if (!data.choices?.[0]?.message?.content) {
-      throw new Error('Invalid response format from LM Studio API');
+    // Ollama возвращает ответ в формате { message: { content: "...", role: "..." }, ... }
+    if (!data.message?.content) {
+      throw new Error('Invalid response format from Ollama API');
     }
 
-    const text = data.choices[0].message.content;
-    const usage = data.usage || {};
+    const text = data.message.content;
+    const usage = {
+      prompt_tokens: data.prompt_eval_count || 0,
+      completion_tokens: data.eval_count || 0,
+      total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
+    };
 
     return {
       text,
       tokens: usage.total_tokens,
       inputTokens: usage.prompt_tokens,
       outputTokens: usage.completion_tokens,
-      // LM Studio не предоставляет информацию о стоимости
+      // Ollama не предоставляет информацию о стоимости
     };
   }
 }
 
 /**
- * Создает экземпляр LM Studio модели
+ * Создает экземпляр Ollama модели
  */
-export const createLMStudioModel = (config?: LMStudioConfig): LMStudioModel => {
-  return new LMStudioModel(config);
+export const createOllamaModel = (config?: OllamaConfig): OllamaModel => {
+  return new OllamaModel(config);
 };
 

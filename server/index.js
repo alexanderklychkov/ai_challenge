@@ -9,6 +9,7 @@ import { handleDeepSeek } from './handlers/deepSeek.js';
 import { handleChatGPT } from './handlers/chatGPT.js';
 import { handleHuggingFace } from './handlers/huggingFace.js';
 import { handleLMStudio, getLMStudioModels } from './handlers/lmStudio.js';
+import { handleOllama, getOllamaModels } from './handlers/ollama.js';
 import { loadMessages, saveMessages, clearMessages } from './utils/storage.js';
 import { 
   loadChats, 
@@ -81,6 +82,8 @@ app.post('/api/chatgpt', handleChatGPT);
 app.post('/api/huggingface', handleHuggingFace);
 app.post('/api/lmstudio', handleLMStudio);
 app.get('/api/lmstudio/models', getLMStudioModels);
+app.post('/api/ollama', handleOllama);
+app.get('/api/ollama/models', getOllamaModels);
 
 // Эндпоинты для работы с чатами (требуют авторизации)
 app.get('/api/chats', authenticateToken, async (req, res) => {
@@ -1989,6 +1992,10 @@ app.post('/api/rag/compare', async (req, res) => {
         case 'lmstudio':
           handler = handleLMStudio;
           apiUrl = '/api/lmstudio';
+          break;
+        case 'ollama':
+          handler = handleOllama;
+          apiUrl = '/api/ollama';
           break;
         default:
           throw new Error(`Неподдерживаемый тип модели: ${modelType}`);

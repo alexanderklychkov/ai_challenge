@@ -9,6 +9,7 @@ import { handleChatGPT } from '../handlers/chatGPT.js';
 import { handleYandexGPT } from '../handlers/yandexGPT.js';
 import { handleHuggingFace } from '../handlers/huggingFace.js';
 import { handleLMStudio } from '../handlers/lmStudio.js';
+import { handleOllama } from '../handlers/ollama.js';
 import { loadUserMessages, saveUserMessages, clearUserMessages } from '../utils/telegramStorage.js';
 import { getUserModel, setUserModel, getUserMCP } from '../utils/telegramUserSettings.js';
 import { subscribeUser, unsubscribeUser, isUserSubscribed, getSubscribedUsers } from '../utils/telegramReminders.js';
@@ -162,6 +163,12 @@ async function getAIResponse(userId, userMessage, modelName = DEFAULT_MODEL, ena
       aiMessages = convertTelegramMessagesToAIFormat([...userMessages, newUserMessage]);
       requestBody.messages = aiMessages;
       requestBody.model = process.env.LM_STUDIO_MODEL || 'mistralai/ministral-3-3b';
+      break;
+    case 'ollama':
+      handler = handleOllama;
+      aiMessages = convertTelegramMessagesToAIFormat([...userMessages, newUserMessage]);
+      requestBody.messages = aiMessages;
+      requestBody.model = process.env.OLLAMA_MODEL || 'qwen2.5:0.5b';
       break;
     default:
       handler = handleDeepSeek;

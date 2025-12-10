@@ -30,6 +30,7 @@ const AGENT_TYPES: { value: AgentType; label: string }[] = [
   { value: 'yandex', label: 'Yandex GPT' },
   { value: 'chatgpt', label: 'ChatGPT' },
   { value: 'lmstudio', label: 'LM Studio (локальная)' },
+  { value: 'ollama', label: 'Ollama (локальная)' },
 ];
 
 const MODEL_PRESETS: Record<AgentType, { value: string; label: string }[]> = {
@@ -56,6 +57,13 @@ const MODEL_PRESETS: Record<AgentType, { value: string; label: string }[]> = {
   lmstudio: [
     { value: '__auto__', label: 'Автоматический выбор (первая доступная)' },
     { value: 'mistralai/ministral-3-3b', label: 'Mistral MiniStral 3B' },
+  ],
+  ollama: [
+    { value: '__auto__', label: 'Автоматический выбор (первая доступная)' },
+    { value: 'qwen2.5:0.5b', label: 'Qwen2.5 0.5B' },
+    { value: 'tinyllama', label: 'TinyLlama 1.1B' },
+    { value: 'phi3:mini', label: 'Phi-3 Mini 3.8B' },
+    { value: 'gemma2:2b', label: 'Gemma 2 2B' },
   ],
 };
 

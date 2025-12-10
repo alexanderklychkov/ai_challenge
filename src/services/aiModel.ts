@@ -105,13 +105,26 @@ export abstract class AIModel {
     cost?: number;
     usedTools?: Array<{ name: string; args?: any; timestamp?: string; error?: string }>;
   }> {
-    const response = await fetch(this.apiProxyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(this.apiProxyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      // Обрабатываем сетевые ошибки (offline, CORS, и т.д.)
+      if (error instanceof TypeError) {
+        // Это может быть offline режим или недоступность сервера
+        const networkError = new Error(`Сервер недоступен: ${error.message}`);
+        (networkError as any).isNetworkError = true;
+        (networkError as any).originalError = error;
+        throw networkError;
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
