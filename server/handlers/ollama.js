@@ -26,7 +26,19 @@ function normalizeOllamaUrl(url) {
  */
 export async function handleOllama(req, res) {
   try {
-    const { messages, system_prompt, model, temperature, max_tokens } = req.body;
+    const { 
+      messages, 
+      system_prompt, 
+      model, 
+      temperature, 
+      max_tokens,
+      // Дополнительные параметры Ollama
+      num_ctx,
+      context_window,
+      top_p,
+      top_k,
+      repeat_penalty,
+    } = req.body;
     
     // Базовый URL для Ollama
     const ollamaUrl = process.env.OLLAMA_URL || process.env.LM_STUDIO_URL || 'http://localhost:11434';
@@ -39,13 +51,30 @@ export async function handleOllama(req, res) {
     // Модель по умолчанию
     const modelName = model || process.env.OLLAMA_MODEL || process.env.LM_STUDIO_MODEL || 'qwen2.5:0.5b';
 
+    // Формируем options объект с поддержкой всех параметров Ollama
+    const options = {
+      temperature: temperature !== undefined ? temperature : 0.7,
+      num_predict: max_tokens || 2000,
+    };
+
+    // Добавляем дополнительные параметры, если они указаны
+    if (num_ctx !== undefined || context_window !== undefined) {
+      options.num_ctx = num_ctx || context_window || 2048;
+    }
+    if (top_p !== undefined) {
+      options.top_p = top_p;
+    }
+    if (top_k !== undefined) {
+      options.top_k = top_k;
+    }
+    if (repeat_penalty !== undefined) {
+      options.repeat_penalty = repeat_penalty;
+    }
+
     const requestBody = {
       model: modelName,
       messages: formattedMessages,
-      options: {
-        temperature: temperature || 0.7,
-        num_predict: max_tokens || 2000,
-      },
+      options,
       stream: false, // Отключаем streaming для простоты
     };
 

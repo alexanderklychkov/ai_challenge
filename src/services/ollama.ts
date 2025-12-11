@@ -3,6 +3,7 @@
  */
 
 import { AIModel, AIModelConfig } from './aiModel';
+import { getOllamaPrompt } from '../utils/ollamaPrompts';
 
 /**
  * Конфигурация для Ollama модели
@@ -11,6 +12,11 @@ export interface OllamaConfig extends AIModelConfig {
   model?: string; // Название модели в Ollama (например, 'qwen2.5:0.5b')
   directUrl?: string; // Прямой URL к Ollama для офлайн работы (например, 'http://localhost:11434')
   enableOffline?: boolean; // Включить офлайн режим (прямое подключение к Ollama)
+  // Дополнительные параметры Ollama
+  numCtx?: number; // Размер контекстного окна
+  topP?: number; // Top-p sampling (0.0-1.0)
+  topK?: number; // Top-k sampling
+  repeatPenalty?: number; // Штраф за повторения (обычно 1.0-1.5)
 }
 
 /**
@@ -28,8 +34,15 @@ export class OllamaModel extends AIModel {
   private enableOffline: boolean;
 
   constructor(config: OllamaConfig = {}) {
+    // Применяем промпт по умолчанию для фронтенд разработки, если systemPrompt не указан
+    const defaultSystemPrompt = getOllamaPrompt();
+    const finalConfig = {
+      ...config,
+      systemPrompt: config.systemPrompt || defaultSystemPrompt,
+    };
+
     super(
-      config,
+      finalConfig,
       import.meta.env.VITE_OLLAMA_PROXY_URL || 'http://localhost:3001/api/ollama',
       config.model || import.meta.env.VITE_OLLAMA_DEFAULT_MODEL || 'qwen2.5:0.5b'
     );
@@ -57,6 +70,22 @@ export class OllamaModel extends AIModel {
       configDirectUrl: config.directUrl,
       configEnableOffline: config.enableOffline,
     });
+  }
+
+  /**
+   * Переопределяем buildRequestBody для передачи дополнительных параметров Ollama
+   */
+  protected buildRequestBody(validMessages: Array<{ role: 'user' | 'assistant' | 'system'; text: string }>, additionalData?: Record<string, any>): Record<string, any> {
+    const baseBody = super.buildRequestBody(validMessages, additionalData);
+    
+    // Добавляем Ollama-специфичные параметры
+    return {
+      ...baseBody,
+      ...(this.config.numCtx !== undefined && { num_ctx: this.config.numCtx }),
+      ...(this.config.topP !== undefined && { top_p: this.config.topP }),
+      ...(this.config.topK !== undefined && { top_k: this.config.topK }),
+      ...(this.config.repeatPenalty !== undefined && { repeat_penalty: this.config.repeatPenalty }),
+    };
   }
 
   /**
@@ -178,13 +207,30 @@ export class OllamaModel extends AIModel {
     const baseUrl = this.directUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
     const apiUrl = `${baseUrl}/api/chat`;
     
+    // Формируем options с поддержкой всех параметров
+    const options: Record<string, any> = {
+      temperature: body.temperature !== undefined ? body.temperature : (this.config.temperature || 0.7),
+      num_predict: body.max_tokens || this.config.maxTokens || 2000,
+    };
+
+    // Добавляем дополнительные параметры Ollama, если они указаны
+    if (body.num_ctx !== undefined || body.context_window !== undefined || this.config.numCtx !== undefined) {
+      options.num_ctx = body.num_ctx || body.context_window || this.config.numCtx || 2048;
+    }
+    if (body.top_p !== undefined || this.config.topP !== undefined) {
+      options.top_p = body.top_p !== undefined ? body.top_p : this.config.topP;
+    }
+    if (body.top_k !== undefined || this.config.topK !== undefined) {
+      options.top_k = body.top_k !== undefined ? body.top_k : this.config.topK;
+    }
+    if (body.repeat_penalty !== undefined || this.config.repeatPenalty !== undefined) {
+      options.repeat_penalty = body.repeat_penalty !== undefined ? body.repeat_penalty : this.config.repeatPenalty;
+    }
+
     const requestBody = {
       model: modelName,
       messages: messages,
-      options: {
-        temperature: body.temperature || this.config.temperature || 0.7,
-        num_predict: body.max_tokens || this.config.maxTokens || 2000,
-      },
+      options,
       stream: false,
     };
     

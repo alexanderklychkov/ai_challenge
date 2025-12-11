@@ -103,8 +103,16 @@ export function ChatPage({ chatListRefreshTrigger, onChatListRefresh }: ChatPage
           model: agent.model,
           temperature: agent.temperature,
           maxTokens: agent.maxTokens,
+          ...(agent.systemPrompt && { systemPrompt: agent.systemPrompt }),
           ...(agent.type === 'deepseek' && { enableMCP: agent.enableMCP }),
           ...(agent.type === 'huggingface' && { provider: agent.provider }),
+          // Дополнительные параметры для Ollama
+          ...(agent.type === 'ollama' && {
+            ...(agent.numCtx && { numCtx: agent.numCtx }),
+            ...(agent.topP && { topP: agent.topP }),
+            ...(agent.topK && { topK: agent.topK }),
+            ...(agent.repeatPenalty && { repeatPenalty: agent.repeatPenalty }),
+          }),
         };
 
         let model;
