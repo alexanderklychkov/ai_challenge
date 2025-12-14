@@ -9,9 +9,10 @@ import { DocumentViewerPage } from './pages/DocumentViewerPage.tsx';
 import { SupportPage } from './pages/SupportPage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
+import { AnalyticsPage } from './pages/AnalyticsPage.tsx';
 import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 import { SupportButton } from './components/SupportButton.tsx';
-import { Code, BookOpen, LogOut, User, Ticket, X, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+import { Code, BookOpen, LogOut, User, Ticket, X, ChevronLeft, ChevronRight, Menu, BarChart3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getUserTickets, deleteTicket, Ticket as TicketType } from './services/tickets';
 
@@ -28,6 +29,7 @@ function App() {
   const isChatRoute = location.pathname.startsWith('/chat');
   const isLearningRoute = location.pathname.startsWith('/learning');
   const isSupportRoute = location.pathname === '/support';
+  const isAnalyticsRoute = location.pathname === '/analytics';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -176,33 +178,59 @@ function App() {
                 >
                   <BookOpen className="w-5 h-5" />
                 </Link>
+                <Link
+                  to="/analytics"
+                  className={`w-full h-10 flex items-center justify-center rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                    isAnalyticsRoute
+                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                  }`}
+                  title="Аналитик"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                </Link>
               </>
             ) : (
-              <div className="flex gap-2 w-full">
+              <div className="flex flex-col gap-2 w-full">
+                <div className="flex gap-2 w-full">
+                  <Link
+                    to="/chat"
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                      isChatRoute
+                        ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                        : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Code className="w-4 h-4" />
+                      Чат
+                    </div>
+                  </Link>
+                  <Link
+                    to="/learning"
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                      isLearningRoute
+                        ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
+                        : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      Обучение
+                    </div>
+                  </Link>
+                </div>
                 <Link
-                  to="/chat"
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
-                    isChatRoute
+                  to="/analytics"
+                  className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
+                    isAnalyticsRoute
                       ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
                       : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
                   }`}
                 >
                   <div className="flex items-center justify-center gap-2">
-                    <Code className="w-4 h-4" />
-                    Чат
-                  </div>
-                </Link>
-                <Link
-                  to="/learning"
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all text-center flex items-center justify-center cursor-pointer ${
-                    isLearningRoute
-                      ? 'bg-gradient-to-r from-[#0066ff] to-[#8000cc] text-white shadow-[0_0_10px_rgba(0,102,255,0.2)] hover:from-[#0055ff] hover:to-[#7000bb]'
-                      : 'bg-[#1e1e2e] text-[#a0a0b0] hover:text-[#e0e0e8] hover:bg-[#2a2a3a]'
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    Обучение
+                    <BarChart3 className="w-4 h-4" />
+                    Аналитик
                   </div>
                 </Link>
               </div>
@@ -284,7 +312,7 @@ function App() {
           )}
           
           {/* Плейсхолдер когда панель свернута */}
-          {(isChatRoute || isLearningRoute || isSupportRoute) && sidebarCollapsed && (
+          {(isChatRoute || isLearningRoute || isSupportRoute || isAnalyticsRoute) && sidebarCollapsed && (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-[#808080] text-xs text-center px-2">
                 <Menu className="w-6 h-6 mx-auto mb-2 opacity-50" />
@@ -366,6 +394,7 @@ function App() {
             <Route path="/learning/plan/:planId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/learning/course/:courseId" element={<ProtectedRoute><LearningPage /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><SupportPage /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
             <Route path="/documents/:fileName" element={<ProtectedRoute><DocumentViewerPage /></ProtectedRoute>} />
           </Routes>
         </div>

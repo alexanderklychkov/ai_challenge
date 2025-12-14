@@ -57,6 +57,8 @@ import { SupportService } from './support/supportService.js';
 import { register, login, getCurrentUser } from './auth/authController.js';
 import { authenticateToken } from './auth/middleware.js';
 import { findUserById } from './utils/userStorage.js';
+import { DataParser } from './analytics/dataParser.js';
+import { AnalyticsService } from './analytics/analyticsService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -2685,6 +2687,108 @@ app.delete('/api/support/tickets/:ticketId', authenticateToken, async (req, res)
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==================== Analytics API ====================
+
+// Загрузка и парсинг файла данных
+app.post('/api/analytics/upload', authenticateToken, async (req, res) => {
+  try {
+    const { fileData, fileName } = req.body;
+
+    if (!fileData || !fileName) {
+      return res.status(400).json({ error: 'fileData и fileName обязательны' });
+    }
+
+    // Декодируем base64
+    let fileBuffer;
+    try {
+      // Убираем префикс data:... если есть
+      const base64Data = fileData.includes(',') 
+        ? fileData.split(',')[1] 
+        : fileData;
+      fileBuffer = Buffer.from(base64Data, 'base64');
+    } catch (error) {
+      return res.status(400).json({ error: 'Неверный формат файла (ожидается base64)' });
+    }
+
+    // Сохраняем файл
+    const filePath = await DataParser.saveUploadedFile(fileBuffer, fileName);
+
+    // Парсим файл
+    const parsedData = await DataParser.parseFile(filePath);
+
+    // Возвращаем результат
+    res.json({
+      success: true,
+      data: parsedData.data,
+      summary: parsedData.summary,
+      type: parsedData.type,
+      fileName: parsedData.fileName,
+      filePath: filePath, // Для последующего использования
+    });
+  } catch (error) {
+    console.error('Ошибка при загрузке файла:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Анализ данных
+app.post('/api/analytics/analyze', authenticateToken, async (req, res) => {
+  try {
+    const { data, summary, question, modelType, model, temperature, maxTokens } = req.body;
+
+    if (!data || !summary || !question) {
+      return res.status(400).json({ error: 'data, summary и question обязательны' });
+    }
+
+    const modelTypeValue = modelType || 'ollama';
+    const options = {
+      model,
+      temperature,
+      maxTokens: maxTokens || 4000,
+    };
+
+    // Анализируем данные
+    const answer = await AnalyticsService.analyzeData(
+      data,
+      summary,
+      question,
+      modelTypeValue,
+      options
+    );
+
+    res.json({
+      success: true,
+      answer,
+    });
+  } catch (error) {
+    console.error('Ошибка при анализе данных:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Получение быстрой статистики
+app.post('/api/analytics/stats', authenticateToken, async (req, res) => {
+  try {
+    const { data, summary } = req.body;
+
+    if (!data || !summary) {
+      return res.status(400).json({ error: 'data и summary обязательны' });
+    }
+
+    const stats = AnalyticsService.getQuickStats(data, summary);
+
+    res.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    console.error('Ошибка при получении статистики:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== End Analytics API ====================
 
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);

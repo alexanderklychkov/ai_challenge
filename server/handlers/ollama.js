@@ -1,5 +1,7 @@
 import { handleApiError, sendErrorResponse } from '../utils/errorHandler.js';
 import { formatOpenAIMessages } from '../utils/messageFormatter.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Нормализует базовый URL для Ollama
@@ -40,6 +42,12 @@ export async function handleOllama(req, res) {
       repeat_penalty,
     } = req.body;
     
+    // #region agent log
+    const logPath = path.join(process.cwd(), '.cursor', 'debug.log');
+    const logEntry = JSON.stringify({location:'ollama.js:29',message:'handleOllama received request',data:{hasSystemPrompt:!!system_prompt,systemPromptLength:system_prompt?.length||0,systemPromptPreview:system_prompt?.substring(0,50)||'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})+'\n';
+    fs.appendFileSync(logPath, logEntry, 'utf8');
+    // #endregion
+    
     // Базовый URL для Ollama
     const ollamaUrl = process.env.OLLAMA_URL || process.env.LM_STUDIO_URL || 'http://localhost:11434';
     const normalizedBaseUrl = normalizeOllamaUrl(ollamaUrl);
@@ -47,6 +55,11 @@ export async function handleOllama(req, res) {
     
     // Формируем сообщения для API
     const formattedMessages = formatOpenAIMessages(messages, system_prompt);
+    
+    // #region agent log
+    const logEntry2 = JSON.stringify({location:'ollama.js:49',message:'After formatOpenAIMessages',data:{formattedMessagesCount:formattedMessages.length,firstMessageRole:formattedMessages[0]?.role,firstMessageContentLength:formattedMessages[0]?.content?.length||0,hasSystemMessage:formattedMessages[0]?.role==='system'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})+'\n';
+    fs.appendFileSync(logPath, logEntry2, 'utf8');
+    // #endregion
     
     // Модель по умолчанию
     const modelName = model || process.env.OLLAMA_MODEL || process.env.LM_STUDIO_MODEL || 'qwen2.5:0.5b';

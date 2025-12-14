@@ -35,11 +35,20 @@ export class OllamaModel extends AIModel {
 
   constructor(config: OllamaConfig = {}) {
     // Применяем промпт по умолчанию для фронтенд разработки, если systemPrompt не указан
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:36',message:'OllamaModel constructor entry',data:{hasConfigSystemPrompt:!!config.systemPrompt,configSystemPromptLength:config.systemPrompt?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const defaultSystemPrompt = getOllamaPrompt();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:39',message:'After getOllamaPrompt call',data:{defaultSystemPromptLength:defaultSystemPrompt.length,willUseDefault:!config.systemPrompt},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const finalConfig = {
       ...config,
       systemPrompt: config.systemPrompt || defaultSystemPrompt,
     };
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:42',message:'Final config systemPrompt',data:{finalSystemPromptLength:finalConfig.systemPrompt.length,finalSystemPromptPreview:finalConfig.systemPrompt.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
 
     super(
       finalConfig,
@@ -77,7 +86,9 @@ export class OllamaModel extends AIModel {
    */
   protected buildRequestBody(validMessages: Array<{ role: 'user' | 'assistant' | 'system'; text: string }>, additionalData?: Record<string, any>): Record<string, any> {
     const baseBody = super.buildRequestBody(validMessages, additionalData);
-    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:88',message:'buildRequestBody called',data:{hasSystemPrompt:!!baseBody.system_prompt,systemPromptLength:baseBody.system_prompt?.length||0,configSystemPromptLength:this.config.systemPrompt?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     // Добавляем Ollama-специфичные параметры
     return {
       ...baseBody,
@@ -197,11 +208,21 @@ export class OllamaModel extends AIModel {
     }));
 
     // Добавляем system prompt как отдельное сообщение, если есть
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:200',message:'Before adding system prompt to messages',data:{hasSystemPrompt:!!body.system_prompt,systemPromptLength:body.system_prompt?.length||0,systemPromptPreview:body.system_prompt?.substring(0,50)||'none'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     if (body.system_prompt) {
       messages.unshift({
         role: 'system',
         content: body.system_prompt,
       });
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:205',message:'System prompt added to messages',data:{messagesCount:messages.length,firstMessageRole:messages[0].role,firstMessageContentLength:messages[0].content.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+    } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:207',message:'No system prompt in body',data:{bodyKeys:Object.keys(body)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
     }
 
     const baseUrl = this.directUrl.replace(/\/v1\/?$/, '').replace(/\/$/, '');
@@ -233,6 +254,10 @@ export class OllamaModel extends AIModel {
       options,
       stream: false,
     };
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollama.ts:251',message:'Before sending request to Ollama API',data:{messagesCount:messages.length,firstMessageRole:messages[0]?.role,firstMessageContentLength:messages[0]?.content?.length||0,hasSystemMessage:messages[0]?.role==='system',requestBodyPreview:JSON.stringify(requestBody).substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     
     const response = await fetch(apiUrl, {
       method: 'POST',

@@ -40,6 +40,13 @@ export const OLLAMA_FRONTEND_PROMPT = `Ты - эксперт по фронтен
  * Получить промпт для Ollama (всегда возвращает фронтенд промпт)
  */
 export const getOllamaPrompt = (): string => {
-  return OLLAMA_FRONTEND_PROMPT;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollamaPrompts.ts:42',message:'getOllamaPrompt called',data:{promptLength:OLLAMA_FRONTEND_PROMPT.length,promptPreview:OLLAMA_FRONTEND_PROMPT.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  const result = OLLAMA_FRONTEND_PROMPT;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/9d8a48f6-a7a7-457d-8f84-950ddc4da809',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ollamaPrompts.ts:44',message:'getOllamaPrompt returning',data:{resultLength:result.length,isEmpty:!result,isUndefined:result===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  return result;
 };
 
