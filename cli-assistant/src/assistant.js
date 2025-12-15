@@ -11,6 +11,10 @@ import { LLMClient } from './llm/client.js';
 import path from 'path';
 import { existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
+import { 
+  loadPersonalization, 
+  buildPersonalizedSystemPrompt 
+} from '../../server/utils/personalizationService.js';
 
 export class Assistant {
   constructor() {
@@ -95,8 +99,14 @@ export class Assistant {
     // Получаем доступные инструменты Todoist
     const todoistTools = this.todoistMCP.initialized ? this.todoistMCP.getTools() : [];
     
-    // Формируем системный промпт с контекстом git и информацией о задачах
-    const systemPrompt = this.buildSystemPrompt(gitContext, todoistTools.length > 0);
+    // Загружаем персонализацию
+    const personalization = await loadPersonalization();
+    
+    // Формируем базовый системный промпт с контекстом git и информацией о задачах
+    const baseSystemPrompt = this.buildSystemPrompt(gitContext, todoistTools.length > 0);
+    
+    // Обогащаем системный промпт персонализацией
+    const systemPrompt = buildPersonalizedSystemPrompt(personalization, baseSystemPrompt);
 
     // Выполняем RAG запрос с поддержкой function calling
     const result = await this.ragService.queryWithRAG(
@@ -241,6 +251,8 @@ export class Assistant {
 
   buildSystemPrompt(gitContext, hasTodoistTools = false) {
     let prompt = `Ты - полезный AI ассистент для команды разработчиков. Твоя задача - помогать команде управлять проектом, понимать его структуру и работать с задачами.
+
+Ты - мой личный агент, который знает меня и мои предпочтения.
 
 Ты имеешь доступ к:
 1. Документации проекта через RAG (Retrieval-Augmented Generation)
