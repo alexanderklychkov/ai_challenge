@@ -59,6 +59,11 @@ import { authenticateToken } from './auth/middleware.js';
 import { findUserById } from './utils/userStorage.js';
 import { DataParser } from './analytics/dataParser.js';
 import { AnalyticsService } from './analytics/analyticsService.js';
+import { 
+  loadPersonalization, 
+  savePersonalization, 
+  updatePersonalization 
+} from './utils/personalizationService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,6 +81,39 @@ app.use(express.json());
 app.post('/api/auth/register', register);
 app.post('/api/auth/login', login);
 app.get('/api/auth/me', authenticateToken, getCurrentUser);
+
+// Эндпоинты для персонализации агента
+app.get('/api/personalization', authenticateToken, async (req, res) => {
+  try {
+    const personalization = await loadPersonalization(req.userId);
+    res.json(personalization || {});
+  } catch (error) {
+    console.error('Ошибка при загрузке персонализации:', error);
+    res.status(500).json({ error: 'Не удалось загрузить персонализацию' });
+  }
+});
+
+app.post('/api/personalization', authenticateToken, async (req, res) => {
+  try {
+    const personalization = req.body;
+    await savePersonalization(personalization, req.userId);
+    res.json({ success: true, personalization });
+  } catch (error) {
+    console.error('Ошибка при сохранении персонализации:', error);
+    res.status(500).json({ error: 'Не удалось сохранить персонализацию' });
+  }
+});
+
+app.patch('/api/personalization', authenticateToken, async (req, res) => {
+  try {
+    const updates = req.body;
+    const updated = await updatePersonalization(updates, req.userId);
+    res.json({ success: true, personalization: updated });
+  } catch (error) {
+    console.error('Ошибка при обновлении персонализации:', error);
+    res.status(500).json({ error: 'Не удалось обновить персонализацию' });
+  }
+});
 
 // Эндпоинты для различных AI моделей
 app.post('/api/yandex-gpt', handleYandexGPT);

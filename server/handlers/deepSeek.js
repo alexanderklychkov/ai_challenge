@@ -2,7 +2,7 @@ import { getAllToolsAsOpenAI, callTool as orchestratorCallTool, getAllTools, get
 import { initializeTodoistMCP } from '../mcp/servers/todoistMCP.js';
 import { initializeArticleMCP } from '../mcp/servers/articleMCP.js';
 import { initializeLearningMCP } from '../mcp/servers/learningMCP.js';
-import { formatOpenAIMessages } from '../utils/messageFormatter.js';
+import { formatOpenAIMessages, enrichSystemPromptWithPersonalization } from '../utils/messageFormatter.js';
 import { sendStatus } from '../utils/statusEmitter.js';
 
 /**
@@ -28,7 +28,7 @@ function getToolDisplayName(toolName) {
  */
 export async function handleDeepSeek(req, res) {
   try {
-    const { messages, system_prompt, model, temperature, max_tokens, enableMCP, chatId, requestId } = req.body;
+    const { messages, system_prompt, model, temperature, max_tokens, enableMCP, chatId, requestId, userId } = req.body;
     const apiKey = process.env.DEEPSEEK_API_KEY;
     
     // Валидация API ключа
@@ -38,8 +38,17 @@ export async function handleDeepSeek(req, res) {
       });
     }
 
+    // Получаем userId из body или из req (если есть middleware авторизации)
+    const finalUserId = userId || req.userId || null;
+    
+    // Обогащаем системный промпт персонализацией
+    const personalizedSystemPrompt = await enrichSystemPromptWithPersonalization(
+      system_prompt || '', 
+      finalUserId
+    );
+
     // Формируем сообщения для API используя существующую утилиту
-    const formattedMessages = formatOpenAIMessages(messages, system_prompt);
+    const formattedMessages = formatOpenAIMessages(messages, personalizedSystemPrompt);
 
     const requestBody = {
       model: model || 'deepseek-chat',

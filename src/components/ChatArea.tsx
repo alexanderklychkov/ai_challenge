@@ -7,6 +7,7 @@ import { Zap, Package, Send, Code, Sparkles, Settings, Wrench, FileText, CreditC
 import { useNavigate } from 'react-router-dom';
 import { parseLearningContent } from '../utils/parseLearningContent';
 import { RAGComparison } from './RAGComparison';
+import { VoiceInput } from './VoiceInput';
 
 interface ChatAreaProps {
   messages: Message[]
@@ -562,6 +563,15 @@ const ChatArea = ({
               style={TEXTAREA_MAX_HEIGHT}
             />
           </div>
+          <VoiceInput
+            onTranscript={(text) => {
+              // Автоматически отправляем сообщение после распознавания
+              if (text.trim() && !isLoading) {
+                onSendMessage(text.trim());
+              }
+            }}
+            disabled={isLoading}
+          />
           <button
             onClick={handleSend}
             disabled={!inputValue.trim() || isLoading}

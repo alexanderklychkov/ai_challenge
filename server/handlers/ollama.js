@@ -1,5 +1,5 @@
 import { handleApiError, sendErrorResponse } from '../utils/errorHandler.js';
-import { formatOpenAIMessages } from '../utils/messageFormatter.js';
+import { formatOpenAIMessages, enrichSystemPromptWithPersonalization } from '../utils/messageFormatter.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -34,6 +34,7 @@ export async function handleOllama(req, res) {
       model, 
       temperature, 
       max_tokens,
+      userId,
       // Дополнительные параметры Ollama
       num_ctx,
       context_window,
@@ -48,13 +49,22 @@ export async function handleOllama(req, res) {
     fs.appendFileSync(logPath, logEntry, 'utf8');
     // #endregion
     
+    // Получаем userId из body или из req (если есть middleware авторизации)
+    const finalUserId = userId || req.userId || null;
+    
+    // Обогащаем системный промпт персонализацией
+    const personalizedSystemPrompt = await enrichSystemPromptWithPersonalization(
+      system_prompt || '', 
+      finalUserId
+    );
+    
     // Базовый URL для Ollama
     const ollamaUrl = process.env.OLLAMA_URL || process.env.LM_STUDIO_URL || 'http://localhost:11434';
     const normalizedBaseUrl = normalizeOllamaUrl(ollamaUrl);
     const apiUrl = `${normalizedBaseUrl}/api/chat`;
     
     // Формируем сообщения для API
-    const formattedMessages = formatOpenAIMessages(messages, system_prompt);
+    const formattedMessages = formatOpenAIMessages(messages, personalizedSystemPrompt);
     
     // #region agent log
     const logEntry2 = JSON.stringify({location:'ollama.js:49',message:'After formatOpenAIMessages',data:{formattedMessagesCount:formattedMessages.length,firstMessageRole:formattedMessages[0]?.role,firstMessageContentLength:formattedMessages[0]?.content?.length||0,hasSystemMessage:formattedMessages[0]?.role==='system'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})+'\n';

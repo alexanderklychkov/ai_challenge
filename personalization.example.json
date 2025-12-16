@@ -1,0 +1,59 @@
+{
+  "name": "Ваше имя",
+  "role": "Frontend разработчик",
+  "interests": [
+    "React",
+    "TypeScript",
+    "UI/UX дизайн",
+    "Оптимизация производительности"
+  ],
+  "skills": [
+    "React",
+    "TypeScript",
+    "JavaScript",
+    "CSS",
+    "Node.js"
+  ],
+  "preferences": {
+    "language": "русский",
+    "detailLevel": "средний",
+    "examples": true,
+    "codeStyle": "современный ES6+",
+    "explanationStyle": "практический с примерами"
+  },
+  "habits": {
+    "workHours": "9:00 - 18:00",
+    "preferredTime": "утро",
+    "focusAreas": [
+      "компонентная архитектура",
+      "типизация",
+      "производительность"
+    ],
+    "breakPattern": "каждые 2 часа"
+  },
+  "workStyle": {
+    "approach": "итеративный",
+    "priorities": [
+      "качество кода",
+      "читаемость",
+      "производительность"
+    ],
+    "preferredTools": [
+      "React",
+      "TypeScript",
+      "Vite"
+    ]
+  },
+  "communicationStyle": "краткий и по делу",
+  "goals": [
+    "Улучшить навыки TypeScript",
+    "Изучить продвинутые паттерны React",
+    "Оптимизировать производительность приложений"
+  ],
+  "context": {
+    "currentProject": "AIMentor",
+    "techStack": "React + TypeScript + Express",
+    "teamSize": "solo",
+    "experience": "3+ года"
+  }
+}
